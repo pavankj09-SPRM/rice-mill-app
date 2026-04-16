@@ -250,16 +250,21 @@ async function viewDayLog() {
     ]);
     
     let html = "";
+   // Update this part inside viewDayLog()
     h.forEach(x => {
-        html += `<div class="log-card" style="border-left-color: var(--edit)">
-            <div><b>${x.name}</b><br><small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small></div>
+        html += `<div class="log-card" style="border-left-color: #ff9800">
+            <div>
+                <b>${x.name}</b><br>
+                <small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small>
+            </div>
             <div class="log-actions">
-                <button class="btn-sm" style="background:var(--edit)" onclick="editHulling(${x.id})">✏️</button>
-                <button class="btn-sm" style="background:var(--primary)" onclick="printSingleBill(${x.id})">📄 Bill</button>
-                <button class="btn-sm" style="background:var(--danger)" onclick="deleteEntry('hulling', ${x.id})">✕</button>
+                <button class="btn-sm" style="background:#ff9800" onclick="editHulling(${x.id})">✏️</button>
+                <button class="btn-sm" style="background:#2e7d32" onclick="printSingleBill(${x.id})">📄 Bill</button>
+                <button class="btn-sm" style="background:#c62828" onclick="deleteEntry('hulling', ${x.id})">✕</button>
             </div>
         </div>`;
     });
+    
     // Add similar loops for 's' (stock) and 'e' (expenses) if needed
     document.getElementById('day_log').innerHTML = html || "No entries for today.";
 }

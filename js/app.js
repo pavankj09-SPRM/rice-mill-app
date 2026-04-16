@@ -7,12 +7,10 @@ let currentSummaryView = 'month';
 
 // 1. INITIALIZATION
 window.onload = () => {
-    // Set default date to today
     const datePicker = document.getElementById('main_date_picker');
     if (datePicker) {
         datePicker.valueAsDate = new Date();
     }
-    
     attachListeners();
     refreshAll();
 };
@@ -33,9 +31,9 @@ function attachListeners() {
     // Date Changes
     document.getElementById('main_date_picker').addEventListener('change', refreshAll);
 
-    // Save Buttons - FIXED NAMES
+    // Save Buttons
     document.getElementById('btn_save_hulling').onclick = saveHulling;
-    document.getElementById('btn_save_stock').onclick = saveStock; // <--- The one causing your error
+    document.getElementById('btn_save_stock').onclick = saveStock;
     document.getElementById('btn_save_expense').onclick = saveExpense;
     document.getElementById('btn_add_variety').onclick = addVariety;
 
@@ -74,6 +72,11 @@ function attachListeners() {
     // Hulling Weight Auto-Calc
     document.getElementById('h_weight').oninput = calculateHullingTotal;
     document.getElementById('h_rate').oninput = calculateHullingTotal;
+    
+    // Stock Logic Update
+    document.getElementById('st_action').onchange = () => {
+        db.settings.toArray().then(items => updateStockDropdown(items));
+    };
 }
 
 // 3. CORE ACTION FUNCTIONS
@@ -236,7 +239,59 @@ function renderChart(inc, exp) {
     });
 }
 
-// 6. UTILITIES (Backup, Toast, Delete)
+// 6. HISTORY LOGS & SUMMARY
+
+async function viewDayLog() {
+    const d = document.getElementById('main_date_picker').value;
+    const [h, s, e] = await Promise.all([
+        db.hulling.where('date').equals(d).toArray(),
+        db.stock.where('date').equals(d).toArray(),
+        db.expenses.where('date').equals(d).toArray()
+    ]);
+    
+    let html = "";
+    h.forEach(x => {
+        html += `<div class="log-card" style="border-left: 6px solid #e65100">
+            <div><b>${x.name}</b> (${x.status})<br><small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small></div>
+            <div>₹${x.total} <button class="btn-sm" style="color:red" onclick="deleteEntry('hulling', ${x.id})">✕</button></div>
+        </div>`;
+    });
+    s.forEach(x => {
+        html += `<div class="log-card" style="border-left: 6px solid #0d47a1">
+            <div><b>${x.type}</b> (${x.action})<br><small>${x.name}</small></div>
+            <div>${Logic.formatDisplay(Logic.processWeight(x.weight, x.type))} <button class="btn-sm" style="color:red" onclick="deleteEntry('stock', ${x.id})">✕</button></div>
+        </div>`;
+    });
+    e.forEach(x => {
+        html += `<div class="log-card" style="border-left: 6px solid #b71c1c">
+            <div><b>${x.name}</b><br><small>${x.type}</small></div>
+            <div>₹${x.amount} <button class="btn-sm" style="color:red" onclick="deleteEntry('expenses', ${x.id})">✕</button></div>
+        </div>`;
+    });
+    document.getElementById('day_log').innerHTML = html || "No entries for today.";
+}
+
+async function generateSummary() {
+    const dStr = document.getElementById('main_date_picker').value;
+    const filter = currentSummaryView === 'month' ? dStr.substring(0, 7) : dStr.substring(0, 4);
+    const allStock = await db.stock.toArray();
+    const filtered = allStock.filter(x => x.date.startsWith(filter));
+    
+    const inventory = {};
+    filtered.forEach(i => { 
+        if(!inventory[i.type]) inventory[i.type] = 0; 
+        const w = Logic.processWeight(i.weight, i.type);
+        inventory[i.type] += (i.action === 'Purchase' ? w : -w);
+    });
+    
+    let html = `<table class="summary-table"><thead><tr><th>Variety</th><th>Net Stock</th></tr></thead><tbody>`;
+    for(let k in inventory) {
+        html += `<tr><td>${k}</td><td>${Logic.formatDisplay(inventory[k])}</td></tr>`;
+    }
+    document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
+}
+
+// 7. UTILITIES (Backup, Toast, Delete)
 
 function showToast(m) {
     const x = document.getElementById("toast");
@@ -246,7 +301,7 @@ function showToast(m) {
 }
 
 async function deleteEntry(table, id) {
-    if (confirm("Permanently delete this record?")) {
+    if (confirm("Delete this record?")) {
         await db[table].delete(id);
         refreshAll();
     }
@@ -287,7 +342,6 @@ async function importJSON(event) {
     reader.readAsText(file);
 }
 
-// STUB FUNCTIONS (To prevent further "not defined" errors)
 async function autoLabour() {
     const d = document.getElementById('main_date_picker').value;
     const h = await db.hulling.where('date').equals(d).toArray();
@@ -296,7 +350,23 @@ async function autoLabour() {
     document.getElementById('exp_amount').value = Math.round(tKg * 0.23);
 }
 
-async function generateSummary() { /* logic for history summary table */ }
-async function viewDayLog() { /* logic for daily log cards */ }
-async function exportToExcel() { /* xlsx logic */ }
-async function exportToPDF() { /* jspdf logic */ }
+// 8. EXPORTS
+
+async function exportToExcel() {
+    const h = await db.hulling.toArray(), s = await db.stock.toArray(), e = await db.expenses.toArray();
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(h), "Hulling");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(s), "Stock");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(e), "Expenses");
+    XLSX.writeFile(wb, `Mill_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+async function exportToPDF() {
+    const { jsPDF } = window.jspdf; const doc = new jsPDF();
+    const d = document.getElementById('main_date_picker').value;
+    doc.text(`Daily Report: ${d}`, 14, 20);
+    const h = await db.hulling.where('date').equals(d).toArray();
+    const body = h.map(x => [x.name, Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy')), x.total, x.status]);
+    doc.autoTable({ head: [['Customer', 'Weight', 'Amount', 'Status']], body: body, startY: 30 });
+    doc.save(`Report_${d}.pdf`);
+}

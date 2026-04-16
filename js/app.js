@@ -461,58 +461,59 @@ async function printSingleBill(id) {
  */
 // --- UPDATED EDIT FUNCTION ---
 async function editHulling(id) {
-    console.log("Edit requested for ID:", id); // Check if click is registered
-    
-    try {
-        const entry = await db.hulling.get(id);
-        if (!entry) {
-            console.error("No entry found for ID:", id);
-            return;
-        }
+    const entry = await db.hulling.get(id);
+    if (!entry) return;
 
-        // 1. Fill the form
-        document.getElementById('h_name').value = entry.name;
-        document.getElementById('h_weight').value = entry.weight;
-        document.getElementById('h_status').value = entry.status;
-        document.getElementById('main_date_picker').value = entry.date;
-        document.getElementById('h_rate').value = entry.rate || 150;
-
-        // 2. UI Feedback
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        const saveBtn = document.getElementById('btn_save_hulling');
-        saveBtn.innerText = "UPDATE RECORD";
-        saveBtn.style.backgroundColor = "#ff9800"; 
-
-        // 3. New Click Logic for the Update
-        saveBtn.onclick = async function() {
-            const newWeight = document.getElementById('h_weight').value;
-            const newRate = document.getElementById('h_rate').value;
-            const kg = Logic.processWeight(newWeight, 'paddy');
-            const newTotal = Math.round((kg / 100) * newRate);
-
-            await db.hulling.update(id, {
-                name: document.getElementById('h_name').value,
-                weight: newWeight,
-                total: newTotal,
-                status: document.getElementById('h_status').value,
-                date: document.getElementById('main_date_picker').value,
-                rate: newRate
-            });
-
-            // Reset UI
-            saveBtn.innerText = "Save & Record";
-            saveBtn.style.backgroundColor = ""; // Reset to CSS default
-            saveBtn.onclick = saveHulling; // Link back to original function
-
-            // Clear inputs
-            document.getElementById('h_name').value = "";
-            document.getElementById('h_weight').value = "";
-            
-            showToast("Record Updated!");
-            refreshAll();
-        };
-    } catch (error) {
-        console.error("Edit Function Error:", error);
+    // --- 1. REDIRECT TO HULLING TAB ---
+    // This finds the Hulling tab button and clicks it for you
+    const hullingTabBtn = document.querySelector('[data-tab="hulling"]');
+    if (hullingTabBtn) {
+        hullingTabBtn.click(); 
     }
+
+    // --- 2. FILL THE FORM ---
+    document.getElementById('h_name').value = entry.name;
+    document.getElementById('h_weight').value = entry.weight;
+    document.getElementById('h_status').value = entry.status;
+    document.getElementById('main_date_picker').value = entry.date;
+    document.getElementById('h_rate').value = entry.rate || 150;
+
+    // --- 3. UI FEEDBACK ---
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    const saveBtn = document.getElementById('btn_save_hulling');
+    saveBtn.innerText = "UPDATE RECORD";
+    saveBtn.style.backgroundColor = "#ff9800"; 
+
+    // --- 4. UPDATE LOGIC ---
+    saveBtn.onclick = async function() {
+        const newWeight = document.getElementById('h_weight').value;
+        const newRate = document.getElementById('h_rate').value;
+        const kg = Logic.processWeight(newWeight, 'paddy');
+        const newTotal = Math.round((kg / 100) * newRate);
+
+        await db.hulling.update(id, {
+            name: document.getElementById('h_name').value,
+            weight: newWeight,
+            total: newTotal,
+            status: document.getElementById('h_status').value,
+            date: document.getElementById('main_date_picker').value,
+            rate: newRate
+        });
+
+        // Reset UI to normal state
+        saveBtn.innerText = "Save & Record";
+        saveBtn.style.backgroundColor = ""; 
+        saveBtn.onclick = saveHulling;
+
+        // Clear inputs
+        document.getElementById('h_name').value = "";
+        document.getElementById('h_weight').value = "";
+        
+        showToast("Record Updated!");
+        refreshAll();
+        
+        // Optional: Switch back to History tab after saving
+        document.querySelector('[data-tab="history"]').click();
+    };
 }

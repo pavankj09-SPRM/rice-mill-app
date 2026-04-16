@@ -258,6 +258,7 @@ async function viewDayLog() {
                 <small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small>
             </div>
             <div class="log-actions">
+                // Inside viewDayLog, check your button HTML:
                 <button class="btn-sm" style="background:#ff9800" onclick="editHulling(${x.id})">✏️</button>
                 <button class="btn-sm" style="background:#2e7d32" onclick="printSingleBill(${x.id})">📄 Bill</button>
                 <button class="btn-sm" style="background:#c62828" onclick="deleteEntry('hulling', ${x.id})">✕</button>
@@ -458,54 +459,60 @@ async function printSingleBill(id) {
 /**
  * Function to load data back into the form for editing
  */
+// --- UPDATED EDIT FUNCTION ---
 async function editHulling(id) {
-    // 1. Get the data from the database
-    const entry = await db.hulling.get(id);
-    if (!entry) return;
-
-    // 2. Fill the entry form at the top with this data
-    document.getElementById('h_name').value = entry.name;
-    document.getElementById('h_weight').value = entry.weight;
-    document.getElementById('h_status').value = entry.status;
-    document.getElementById('main_date_picker').value = entry.date;
+    console.log("Edit requested for ID:", id); // Check if click is registered
     
-    // Set a default rate if one isn't stored
-    document.getElementById('h_rate').value = entry.rate || 150;
+    try {
+        const entry = await db.hulling.get(id);
+        if (!entry) {
+            console.error("No entry found for ID:", id);
+            return;
+        }
 
-    // 3. Scroll user back to the top form
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+        // 1. Fill the form
+        document.getElementById('h_name').value = entry.name;
+        document.getElementById('h_weight').value = entry.weight;
+        document.getElementById('h_status').value = entry.status;
+        document.getElementById('main_date_picker').value = entry.date;
+        document.getElementById('h_rate').value = entry.rate || 150;
 
-    // 4. Transform the "Save" button into an "Update" button
-    const saveBtn = document.getElementById('btn_save_hulling');
-    saveBtn.innerText = "UPDATE RECORD";
-    saveBtn.style.background = "#ff9800"; // Orange color for edit mode
-
-    // 5. Change the button's behavior
-    saveBtn.onclick = async () => {
-        const newWeight = document.getElementById('h_weight').value;
-        const newRate = document.getElementById('h_rate').value;
-        const kg = Logic.processWeight(newWeight, 'paddy');
-        const newTotal = Math.round((kg / 100) * newRate);
-
-        // Update the record in Dexie DB
-        await db.hulling.update(id, {
-            name: document.getElementById('h_name').value,
-            weight: newWeight,
-            total: newTotal,
-            status: document.getElementById('h_status').value,
-            date: document.getElementById('main_date_picker').value
-        });
-
-        // Reset everything back to normal
-        saveBtn.innerText = "Save & Record";
-        saveBtn.style.background = "#2e7d32"; 
-        saveBtn.onclick = saveHulling;
-
-        // Clear inputs
-        document.getElementById('h_name').value = "";
-        document.getElementById('h_weight').value = "";
+        // 2. UI Feedback
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         
-        showToast("Record Updated Successfully!");
-        refreshAll();
-    };
+        const saveBtn = document.getElementById('btn_save_hulling');
+        saveBtn.innerText = "UPDATE RECORD";
+        saveBtn.style.backgroundColor = "#ff9800"; 
+
+        // 3. New Click Logic for the Update
+        saveBtn.onclick = async function() {
+            const newWeight = document.getElementById('h_weight').value;
+            const newRate = document.getElementById('h_rate').value;
+            const kg = Logic.processWeight(newWeight, 'paddy');
+            const newTotal = Math.round((kg / 100) * newRate);
+
+            await db.hulling.update(id, {
+                name: document.getElementById('h_name').value,
+                weight: newWeight,
+                total: newTotal,
+                status: document.getElementById('h_status').value,
+                date: document.getElementById('main_date_picker').value,
+                rate: newRate
+            });
+
+            // Reset UI
+            saveBtn.innerText = "Save & Record";
+            saveBtn.style.backgroundColor = ""; // Reset to CSS default
+            saveBtn.onclick = saveHulling; // Link back to original function
+
+            // Clear inputs
+            document.getElementById('h_name').value = "";
+            document.getElementById('h_weight').value = "";
+            
+            showToast("Record Updated!");
+            refreshAll();
+        };
+    } catch (error) {
+        console.error("Edit Function Error:", error);
+    }
 }

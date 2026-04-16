@@ -43,12 +43,12 @@ function attachListeners() {
             generateSummary();
         });
     });
-
+/*
     // Backup/Restore
     document.getElementById('btn_backup').addEventListener('click', exportJSON);
     document.getElementById('btn_restore_trigger').addEventListener('click', () => document.getElementById('import_file').click());
     document.getElementById('import_file').addEventListener('change', importJSON);
-
+*/
     // Inside your attachListeners() function, ensure this exact logic exists:
 document.getElementById('btn_restore_trigger').addEventListener('click', () => {
     document.getElementById('import_file').click();

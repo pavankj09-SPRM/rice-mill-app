@@ -455,32 +455,39 @@ async function printSingleBill(id) {
 
 // --- EDIT FUNCTION ---
 
+/**
+ * Function to load data back into the form for editing
+ */
 async function editHulling(id) {
+    // 1. Get the data from the database
     const entry = await db.hulling.get(id);
     if (!entry) return;
 
-    // 1. Fill the inputs with existing data
+    // 2. Fill the entry form at the top with this data
     document.getElementById('h_name').value = entry.name;
     document.getElementById('h_weight').value = entry.weight;
-    document.getElementById('h_rate').value = entry.rate || 150; // default if missing
     document.getElementById('h_status').value = entry.status;
     document.getElementById('main_date_picker').value = entry.date;
+    
+    // Set a default rate if one isn't stored
+    document.getElementById('h_rate').value = entry.rate || 150;
 
-    // 2. Scroll to the top so you can see the form
+    // 3. Scroll user back to the top form
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // 3. Change the "Save" button to "Update"
+    // 4. Transform the "Save" button into an "Update" button
     const saveBtn = document.getElementById('btn_save_hulling');
     saveBtn.innerText = "UPDATE RECORD";
-    saveBtn.style.background = "var(--edit)";
+    saveBtn.style.background = "#ff9800"; // Orange color for edit mode
 
-    // 4. Temporarily change what the button does
+    // 5. Change the button's behavior
     saveBtn.onclick = async () => {
         const newWeight = document.getElementById('h_weight').value;
         const newRate = document.getElementById('h_rate').value;
         const kg = Logic.processWeight(newWeight, 'paddy');
         const newTotal = Math.round((kg / 100) * newRate);
 
+        // Update the record in Dexie DB
         await db.hulling.update(id, {
             name: document.getElementById('h_name').value,
             weight: newWeight,
@@ -489,15 +496,16 @@ async function editHulling(id) {
             date: document.getElementById('main_date_picker').value
         });
 
-        // Reset the button back to normal
+        // Reset everything back to normal
         saveBtn.innerText = "Save & Record";
-        saveBtn.style.background = "var(--primary)";
+        saveBtn.style.background = "#2e7d32"; 
         saveBtn.onclick = saveHulling;
 
-        // Clear inputs and refresh
+        // Clear inputs
         document.getElementById('h_name').value = "";
         document.getElementById('h_weight').value = "";
-        showToast("Record Updated!");
+        
+        showToast("Record Updated Successfully!");
         refreshAll();
     };
 }

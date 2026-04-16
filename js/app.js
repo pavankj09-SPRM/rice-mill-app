@@ -48,6 +48,44 @@ function attachListeners() {
     document.getElementById('btn_backup').addEventListener('click', exportJSON);
     document.getElementById('btn_restore_trigger').addEventListener('click', () => document.getElementById('import_file').click());
     document.getElementById('import_file').addEventListener('change', importJSON);
+
+    // Inside your attachListeners() function, ensure this exact logic exists:
+document.getElementById('btn_restore_trigger').addEventListener('click', () => {
+    document.getElementById('import_file').click();
+});
+
+document.getElementById('import_file').addEventListener('change', async (event) => {
+    const reader = new FileReader();
+    const file = event.target.files[0];
+    if (!file) return;
+
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            // Clear tables first to prevent "ID already exists" errors
+            await Promise.all([
+                db.settings.clear(),
+                db.hulling.clear(),
+                db.stock.clear(),
+                db.expenses.clear()
+            ]);
+
+            // Re-populate tables
+            if (data.settings) await db.settings.bulkAdd(data.settings);
+            if (data.hulling) await db.hulling.bulkAdd(data.hulling);
+            if (data.stock) await db.stock.bulkAdd(data.stock);
+            if (data.expenses) await db.expenses.bulkAdd(data.expenses);
+
+            alert("Data Restored Successfully!");
+            location.reload(); // Refresh to show the new data
+        } catch (err) {
+            console.error(err);
+            alert("Error: Invalid Backup File Format");
+        }
+    };
+    reader.readAsText(file);
+});
 }
 
 // --- CORE ACTIONS ---

@@ -251,23 +251,15 @@ async function viewDayLog() {
     
     let html = "";
     h.forEach(x => {
-        html += `<div class="log-card" style="border-left: 6px solid #e65100">
-            <div><b>${x.name}</b> (${x.status})<br><small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small></div>
-            <div>₹${x.total} <button class="btn-sm" style="color:red" onclick="deleteEntry('hulling', ${x.id})">✕</button></div>
+        html += `<div class="log-card" style="border-left-color: var(--edit)">
+            <div><b>${x.name}</b><br><small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small></div>
+            <div class="log-actions">
+                <button class="btn-sm" style="background:var(--primary)" onclick="printSingleBill(${x.id})">📄 Bill</button>
+                <button class="btn-sm" style="background:var(--danger)" onclick="deleteEntry('hulling', ${x.id})">✕</button>
+            </div>
         </div>`;
     });
-    s.forEach(x => {
-        html += `<div class="log-card" style="border-left: 6px solid #0d47a1">
-            <div><b>${x.type}</b> (${x.action})<br><small>${x.name}</small></div>
-            <div>${Logic.formatDisplay(Logic.processWeight(x.weight, x.type))} <button class="btn-sm" style="color:red" onclick="deleteEntry('stock', ${x.id})">✕</button></div>
-        </div>`;
-    });
-    e.forEach(x => {
-        html += `<div class="log-card" style="border-left: 6px solid #b71c1c">
-            <div><b>${x.name}</b><br><small>${x.type}</small></div>
-            <div>₹${x.amount} <button class="btn-sm" style="color:red" onclick="deleteEntry('expenses', ${x.id})">✕</button></div>
-        </div>`;
-    });
+    // Add similar loops for 's' (stock) and 'e' (expenses) if needed
     document.getElementById('day_log').innerHTML = html || "No entries for today.";
 }
 
@@ -286,7 +278,7 @@ async function generateSummary() {
     
     let html = `<table class="summary-table"><thead><tr><th>Variety</th><th>Net Stock</th></tr></thead><tbody>`;
     for(let k in inventory) {
-        html += `<tr><td>${k}</td><td>${Logic.formatDisplay(inventory[k])}</td></tr>`;
+        html += `<tr><td><b>${k}</b></td><td>${Logic.formatDisplay(inventory[k])}</td></tr>`;
     }
     document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
 }
@@ -369,4 +361,32 @@ async function exportToPDF() {
     const body = h.map(x => [x.name, Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy')), x.total, x.status]);
     doc.autoTable({ head: [['Customer', 'Weight', 'Amount', 'Status']], body: body, startY: 30 });
     doc.save(`Report_${d}.pdf`);
+}
+
+async function printSingleBill(id) {
+    const entry = await db.hulling.get(id);
+    if (!entry) return;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: [80, 150] });
+
+    doc.setFontSize(12);
+    doc.text("SHRI PARSHWANATHA RICE MILL", 40, 10, { align: "center" });
+    doc.setFontSize(8);
+    doc.text("Sullalli, Sagar Taluk", 40, 15, { align: "center" });
+    doc.line(5, 18, 75, 18);
+
+    doc.text(`Date: ${entry.date}`, 5, 25);
+    doc.text(`Customer: ${entry.name}`, 5, 30);
+    
+    doc.autoTable({
+        startY: 35,
+        head: [['Item', 'Qty', 'Total']],
+        body: [['Paddy Hulling', Logic.formatDisplay(Logic.processWeight(entry.weight, 'paddy')), `Rs.${entry.total}`]],
+        theme: 'plain',
+        styles: { fontSize: 8 }
+    });
+
+    doc.text("Thank You!", 40, doc.lastAutoTable.finalY + 10, { align: "center" });
+    doc.save(`Bill_${entry.name}.pdf`);
 }

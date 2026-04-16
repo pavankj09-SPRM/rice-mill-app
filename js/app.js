@@ -258,7 +258,7 @@ async function viewDayLog() {
                 <small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small>
             </div>
             <div class="log-actions">
-                // Inside viewDayLog, check your button HTML:
+            
                 <button class="btn-sm" style="background:#ff9800" onclick="editHulling(${x.id})">✏️</button>
                 <button class="btn-sm" style="background:#2e7d32" onclick="printSingleBill(${x.id})">📄 Bill</button>
                 <button class="btn-sm" style="background:#c62828" onclick="deleteEntry('hulling', ${x.id})">✕</button>

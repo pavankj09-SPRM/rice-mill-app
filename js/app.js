@@ -368,25 +368,81 @@ async function printSingleBill(id) {
     if (!entry) return;
 
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: [80, 150] });
-
-    doc.setFontSize(12);
-    doc.text("SHRI PARSHWANATHA RICE MILL", 40, 10, { align: "center" });
-    doc.setFontSize(8);
-    doc.text("Sullalli, Sagar Taluk", 40, 15, { align: "center" });
-    doc.line(5, 18, 75, 18);
-
-    doc.text(`Date: ${entry.date}`, 5, 25);
-    doc.text(`Customer: ${entry.name}`, 5, 30);
     
-    doc.autoTable({
-        startY: 35,
-        head: [['Item', 'Qty', 'Total']],
-        body: [['Paddy Hulling', Logic.formatDisplay(Logic.processWeight(entry.weight, 'paddy')), `Rs.${entry.total}`]],
-        theme: 'plain',
-        styles: { fontSize: 8 }
+    // Create a 80mm width receipt (Standard Thermal size)
+    const doc = new jsPDF({
+        unit: 'mm',
+        format: [80, 160] 
     });
 
-    doc.text("Thank You!", 40, doc.lastAutoTable.finalY + 10, { align: "center" });
-    doc.save(`Bill_${entry.name}.pdf`);
+    // --- 1. THE BORDER ---
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.rect(2, 2, 76, 156); // Outer frame
+
+    // --- 2. THE HEADER ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("SHRI PARSHWANATHA RICE MILL", 40, 12, { align: "center" });
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Sullalli, Sagar Taluk, Shimoga Dist.", 40, 17, { align: "center" });
+    doc.text("Ph No: +91 9482364402, +91 8861080602", 40, 21, { align: "center" });
+    
+    // Separator line
+    doc.setLineWidth(0.2);
+    doc.line(5, 25, 75, 25);
+
+    // --- 3. CUSTOMER DETAILS ---
+    doc.setFont("helvetica", "bold");
+    doc.text("INVOICE / RECEIPT", 40, 32, { align: "center" });
+    
+    doc.setFont("helvetica", "normal");
+    doc.text(`Bill Date : ${entry.date}`, 8, 40);
+    doc.text(`Customer : ${entry.name}`, 8, 45);
+    doc.text(`Status   : ${entry.status}`, 8, 50);
+
+    // --- 4. DATA TABLE ---
+    doc.autoTable({
+        startY: 55,
+        margin: { left: 5, right: 5 },
+        head: [['Service Description', 'Qty', 'Total']],
+        body: [
+            ['Paddy Hulling Service', 
+             Logic.formatDisplay(Logic.processWeight(entry.weight, 'paddy')), 
+             `Rs. ${entry.total}`]
+        ],
+        theme: 'grid', // Grid theme provides clean table lines
+        styles: { 
+            fontSize: 8, 
+            cellPadding: 3,
+            halign: 'center'
+        },
+        headStyles: { 
+            fillColor: [40, 40, 40], // Dark header
+            textColor: [255, 255, 255], 
+            fontStyle: 'bold' 
+        },
+        columnStyles: {
+            0: { halign: 'left', cellWidth: 35 },
+            1: { halign: 'center' },
+            2: { halign: 'right' }
+        }
+    });
+
+    // --- 5. FOOTER & TOTAL ---
+    const finalY = doc.lastAutoTable.finalY;
+    
+    doc.setFont("helvetica", "bold");
+    doc.text(`GRAND TOTAL: Rs. ${entry.total}`, 75, finalY + 10, { align: "right" });
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7);
+    doc.text("This is a computer-generated receipt.", 40, finalY + 25, { align: "center" });
+    doc.setFont("helvetica", "bold");
+    doc.text("THANK YOU FOR YOUR BUSINESS!", 40, finalY + 30, { align: "center" });
+
+    // Save PDF
+    doc.save(`Bill_${entry.name}_${entry.date}.pdf`);
 }

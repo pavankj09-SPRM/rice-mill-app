@@ -254,6 +254,7 @@ async function viewDayLog() {
         html += `<div class="log-card" style="border-left-color: var(--edit)">
             <div><b>${x.name}</b><br><small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small></div>
             <div class="log-actions">
+                <button class="btn-sm" style="background:var(--edit)" onclick="editHulling(${x.id})">✏️</button>
                 <button class="btn-sm" style="background:var(--primary)" onclick="printSingleBill(${x.id})">📄 Bill</button>
                 <button class="btn-sm" style="background:var(--danger)" onclick="deleteEntry('hulling', ${x.id})">✕</button>
             </div>
@@ -445,4 +446,53 @@ async function printSingleBill(id) {
 
     // Save PDF
     doc.save(`Bill_${entry.name}_${entry.date}.pdf`);
+}
+
+// --- EDIT FUNCTION ---
+
+async function editHulling(id) {
+    const entry = await db.hulling.get(id);
+    if (!entry) return;
+
+    // 1. Fill the inputs with existing data
+    document.getElementById('h_name').value = entry.name;
+    document.getElementById('h_weight').value = entry.weight;
+    document.getElementById('h_rate').value = entry.rate || 150; // default if missing
+    document.getElementById('h_status').value = entry.status;
+    document.getElementById('main_date_picker').value = entry.date;
+
+    // 2. Scroll to the top so you can see the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // 3. Change the "Save" button to "Update"
+    const saveBtn = document.getElementById('btn_save_hulling');
+    saveBtn.innerText = "UPDATE RECORD";
+    saveBtn.style.background = "var(--edit)";
+
+    // 4. Temporarily change what the button does
+    saveBtn.onclick = async () => {
+        const newWeight = document.getElementById('h_weight').value;
+        const newRate = document.getElementById('h_rate').value;
+        const kg = Logic.processWeight(newWeight, 'paddy');
+        const newTotal = Math.round((kg / 100) * newRate);
+
+        await db.hulling.update(id, {
+            name: document.getElementById('h_name').value,
+            weight: newWeight,
+            total: newTotal,
+            status: document.getElementById('h_status').value,
+            date: document.getElementById('main_date_picker').value
+        });
+
+        // Reset the button back to normal
+        saveBtn.innerText = "Save & Record";
+        saveBtn.style.background = "var(--primary)";
+        saveBtn.onclick = saveHulling;
+
+        // Clear inputs and refresh
+        document.getElementById('h_name').value = "";
+        document.getElementById('h_weight').value = "";
+        showToast("Record Updated!");
+        refreshAll();
+    };
 }

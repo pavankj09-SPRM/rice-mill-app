@@ -121,29 +121,32 @@ async function saveHulling() {
 }
 
 async function refreshDashboard() {
-    const d = document.getElementById('main_date_picker').value;
+    const selectedDate = document.getElementById('main_date_picker').value;
     
-    // Fetch data for the selected date
-    const h = await db.hulling.where('date').equals(d).toArray();
-    const s = await db.stock.where('date').equals(d).toArray();
-    const e = await db.expenses.where('date').equals(d).toArray();
+    // Fetch all needed data
+    const [hEntries, sEntries, eEntries] = await Promise.all([
+        db.hulling.where('date').equals(selectedDate).toArray(),
+        db.stock.where('date').equals(selectedDate).toArray(),
+        db.expenses.where('date').equals(selectedDate).toArray()
+    ]);
 
-    // Calculations using Logic.js helpers
-    const tKg = h.reduce((sum, item) => sum + Logic.processWeight(item.weight, 'paddy'), 0);
-    const income = h.filter(x => x.status === 'Paid').reduce((sum, item) => sum + parseFloat(item.total || 0), 0) +
-                   s.filter(x => x.action === 'Sale').reduce((sum, item) => sum + (item.amount || 0), 0);
-    const expense = e.reduce((sum, item) => sum + (item.amount || 0), 0) +
-                    s.filter(x => x.action === 'Purchase').reduce((sum, item) => sum + (item.amount || 0), 0);
+    // 1. Calculate Daily Hulling Qnt
+    const totalHullingKg = hEntries.reduce((acc, curr) => acc + Logic.processWeight(curr.weight, 'paddy'), 0);
 
-    // Update the UI boxes
-    const statsContainer = document.getElementById('dash_stats_container');
-    if (statsContainer) {
-        statsContainer.innerHTML = `
-            <div class="stat-box stat-hulling"><span>Daily Hulling</span><span class="stat-val">${Logic.formatDisplay(tKg)}</span></div>
-            <div class="stat-box stat-income"><span>Income</span><span class="stat-val">₹${income}</span></div>
-            <div class="stat-box stat-expense"><span>Expense</span><span class="stat-val">₹${expense}</span></div>
-        `;
-    }
+    // 2. Calculate Cash In (Paid Hulling + Sales)
+    const income = hEntries.filter(x => x.status === 'Paid').reduce((acc, curr) => acc + parseFloat(curr.total || 0), 0) +
+                   sEntries.filter(x => x.action === 'Sale').reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
+
+    // 3. Calculate Cash Out (Purchases + Expenses)
+    const expense = sEntries.filter(x => x.action === 'Purchase').reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0) +
+                    eEntries.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
+
+    // Update the Stat Boxes
+    document.getElementById('dash_stats_container').innerHTML = `
+        <div class="stat-box stat-hulling"><span>Daily Hulling</span><span class="stat-val">${Logic.formatDisplay(totalHullingKg)}</span></div>
+        <div class="stat-box stat-income"><span>Income</span><span class="stat-val">₹${income.toLocaleString()}</span></div>
+        <div class="stat-box stat-expense"><span>Expense</span><span class="stat-val">₹${expense.toLocaleString()}</span></div>
+    `;
 
     renderChart(income, expense);
 }
@@ -152,28 +155,33 @@ function renderChart(inc, exp) {
     const canvas = document.getElementById('financeChart');
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (myChart) myChart.destroy(); // Always destroy old chart before drawing new one
+    if (myChart) myChart.destroy();
+    
+    // Only show chart if there is data
+    if (inc === 0 && exp === 0) {
+        canvas.style.display = 'none';
+        return;
+    }
+    canvas.style.display = 'block';
 
-    myChart = new Chart(ctx, {
-        type: 'doughnut', // Doughnut looks great on mobile dashboards
+    myChart = new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
         data: {
             labels: ['Income', 'Expense'],
             datasets: [{
                 data: [inc, exp],
                 backgroundColor: ['#2e7d32', '#c62828'],
-                borderWidth: 0
+                hoverOffset: 4
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' }
-            }
+            plugins: { legend: { position: 'bottom' } }
         }
     });
 }
+
 /* async function refreshDashboard() {
     const d = document.getElementById('main_date_picker').value;
     const h = await db.hulling.where('date').equals(d).toArray();

@@ -96,6 +96,10 @@ async function saveHulling() {
     document.getElementById('h_name').value = "";
     document.getElementById('h_weight').value = "";
     alert("Saved Successfully!");
+    
+    const toast = document.getElementById("toast");
+    toast.className = "show";
+    setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
     refreshAll();
 }
 

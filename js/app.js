@@ -375,7 +375,7 @@ async function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
 
-            if (!confirm("⚠️ Replace all data with backup?")) return;
+            if (!confirm("⚠️ This will erase all data. Continue?")) return;
 
             await db.transaction('rw', db.settings, db.hulling, db.stock, db.expenses, async () => {
 
@@ -384,19 +384,36 @@ async function importData(event) {
                 await db.stock.clear();
                 await db.expenses.clear();
 
-                // ✅ IMPORTANT: remove id before insert
-                const clean = arr => arr.map(x => {
-                    delete x.id;
-                    return x;
-                });
+                // ✅ SAFE INSERT FUNCTION
+                const safeInsert = async (table, arr) => {
+                    if (!Array.isArray(arr)) return;
 
-                await db.settings.bulkAdd(clean(data.settings || []));
-                await db.hulling.bulkAdd(clean(data.hulling || []));
-                await db.stock.bulkAdd(clean(data.stock || []));
-                await db.expenses.bulkAdd(clean(data.expenses || []));
+                    for (let item of arr) {
+                        if (!item || typeof item !== 'object') continue;
+
+                        // Remove id for auto increment
+                        delete item.id;
+
+                        // ✅ Ensure required fields exist
+                        if (table === 'settings' && !item.fullName) continue;
+                        if (table === 'hulling' && !item.name) continue;
+                        if (table === 'stock' && !item.name) continue;
+
+                        try {
+                            await db[table].add(item);
+                        } catch (err) {
+                            console.warn("Skipped bad record:", item);
+                        }
+                    }
+                };
+
+                await safeInsert('settings', data.settings);
+                await safeInsert('hulling', data.hulling);
+                await safeInsert('stock', data.stock);
+                await safeInsert('expenses', data.expenses);
             });
 
-            alert("✅ Restore successful!");
+            alert("✅ Restore Successful!");
             location.reload();
 
         } catch (err) {

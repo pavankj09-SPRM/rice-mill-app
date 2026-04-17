@@ -1,5 +1,5 @@
 /**
- * js/app.js - Full Integrated Logic
+ * js/app.js - Full Integrated Logic for Parshwanatha Rice Mill
  */
 
 // --- 1. CORE REFRESH LOGIC ---
@@ -12,34 +12,43 @@ const refreshAll = async () => {
     }
 };
 
-// --- 2. THE TAB SWITCHER (Matches prefix-tab) ---
+// --- 2. THE TAB SWITCHER ---
 const switchTab = (tabId) => {
-    // Hide all
+    console.log("Switching to:", tabId);
+
+    // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(c => {
         c.classList.remove('active');
         c.style.display = "none";
     });
-    // Reset buttons
+
+    // Reset all navigation buttons
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
-    // Show selected
+    // Show the selected tab
     const target = document.getElementById(tabId);
     const nav = document.querySelector(`[data-tab="${tabId}"]`);
 
     if (target) {
         target.classList.add('active');
         target.style.display = "block";
+    } else {
+        console.error("Could not find a <div> with id:", tabId);
     }
+
     if (nav) nav.classList.add('active');
 
-    if (tabId === 'history-tab' || tabId === 'stock-tab' || tabId === 'expenses-tab') 
+    // Refresh data when opening history or stock
+    if (tabId === 'history-tab' || tabId === 'stock-tab') {
         refreshAll();
+    }
 };
 
 // --- 3. INITIALIZATION ---
 window.onload = () => {
     const today = new Date().toISOString().split('T')[0];
     const dp = document.getElementById('main_date_picker');
+    
     if (dp) {
         dp.value = today;
         dp.onchange = refreshAll;
@@ -47,7 +56,10 @@ window.onload = () => {
 
     // Bind Navigation Clicks
     document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.onclick = () => switchTab(btn.getAttribute('data-tab'));
+        btn.onclick = () => {
+            const idFromHtml = btn.getAttribute('data-tab');
+            switchTab(idFromHtml);
+        };
     });
 
     // Bind Save Buttons
@@ -57,7 +69,7 @@ window.onload = () => {
     const sBtn = document.getElementById('btn_save_stock');
     if (sBtn) sBtn.onclick = saveStock;
 
-    // Default to Hulling
+    // Default startup tab
     switchTab('hulling-tab');
     refreshAll();
 };
@@ -75,7 +87,9 @@ async function saveHulling() {
     const rate = document.getElementById('h_rate').value || 150;
 
     await db.hulling.add({
-        name, weight: weightVal, rate,
+        name, 
+        weight: weightVal, 
+        rate,
         total: Math.round((kg / 100) * rate),
         status: document.getElementById('h_status').value,
         date: date
@@ -96,24 +110,18 @@ async function saveStock() {
 
     if (!weightVal) return alert("Enter weight");
 
-    // Primary Entry
+    // Manual Entry only - No auto-calculation
     await db.stock.add({
-        name: name || "Self", action: action, 
+        name: name || "Self", 
+        action: action, 
         type: type, 
         weight: weightVal, 
         date: date
     });
 
-  /*  // PADDY PROCESSING: If selling/using PADDY, create RICE and HUSK automatically
-    if (action === "Sale" && type.toLowerCase().includes("paddy")) {
-        const kg = Logic.processWeight(weightVal);
-        await db.stock.bulkAdd([
-            { name: "System", action: "Purchase", type: "Common Rice", weight: (kg * 0.65 / 100).toFixed(2), date },
-            { name: "System", action: "Purchase", type: "Husk Waste", weight: (kg * 0.25 / 100).toFixed(2), date }
-        ]);
-    }
-*/
     showToast("Stock Updated!");
+    
+    // Clear inputs
     document.getElementById('st_weight').value = "";
     document.getElementById('st_name').value = "";
     
@@ -126,12 +134,17 @@ async function viewDayLog() {
     const d = document.getElementById('main_date_picker').value;
     const items = await db.hulling.where('date').equals(d).toArray();
     let html = "";
+    
     items.forEach(x => {
-        html += `<div class="card" style="border-left:5px solid #ff9800; display:flex; justify-content:space-between; margin-bottom:10px;">
-            <div><b>${x.name}</b><br><small>${Logic.formatDisplay(Logic.processWeight(x.weight))}</small></div>
-            <span style="color:${x.status==='Paid'?'green':'red'}">${x.status}</span>
+        html += `<div class="card" style="border-left:5px solid #ff9800; display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+            <div>
+                <b>${x.name}</b><br>
+                <small>${Logic.formatDisplay(Logic.processWeight(x.weight))}</small>
+            </div>
+            <span style="color:${x.status==='Paid'?'green':'red'}; font-weight:bold;">${x.status}</span>
         </div>`;
     });
+    
     const log = document.getElementById('day_log');
     if (log) log.innerHTML = html || "No records for today.";
 }
@@ -139,18 +152,26 @@ async function viewDayLog() {
 async function generateSummary() {
     const all = await db.stock.toArray();
     const inv = {};
+    
     all.forEach(i => {
         if (!inv[i.type]) inv[i.type] = 0;
         const w = Logic.processWeight(i.weight);
         inv[i.type] += (i.action === 'Purchase' || i.action === 'Inward') ? w : -w;
     });
 
-    let html = "<table class='summary-table'><tr><th>Variety</th><th>Net Stock</th></tr>";
+    let html = "<table class='summary-table' style='width:100%; border-collapse:collapse;'><tr><th style='text-align:left;'>Variety</th><th style='text-align:right;'>Net Stock</th></tr>";
+    
     Object.keys(inv).forEach(k => {
         const val = inv[k];
-        const display = k.toLowerCase().includes("bag") ? `${val} Pcs` : Logic.formatDisplay(val);
-        html += `<tr><td>${k}</td><td style="color:${val < 0 ? 'red':'green'}"><b>${display}</b></td></tr>`;
+        const isBag = k.toLowerCase().includes("bag");
+        const display = isBag ? `${val} Pcs` : Logic.formatDisplay(val);
+        
+        html += `<tr style="border-bottom:1px solid #eee; height:40px;">
+            <td>${k}</td>
+            <td style="text-align:right; color:${val < 0 ? 'red':'green'}"><b>${display}</b></td>
+        </tr>`;
     });
+    
     const display = document.getElementById('summary_display');
     if (display) display.innerHTML = html + "</table>";
 }

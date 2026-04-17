@@ -269,50 +269,52 @@ async function viewDayLog() {
     document.getElementById('day_log').innerHTML = html || "No entries for today.";
 }
 
-
 async function generateSummary() {
     const dStr = document.getElementById('main_date_picker').value;
     const filter = currentSummaryView === 'month' ? dStr.substring(0, 7) : dStr.substring(0, 4);
     
     const allStock = await db.stock.toArray();
+    // Filter by date
     const filtered = allStock.filter(x => x.date.startsWith(filter));
     
     const inventory = {};
 
-    filtered.forEach(i => { 
-        if (!inventory[i.type]) inventory[i.type] = 0; 
+    filtered.forEach(item => {
+        if (!inventory[item.type]) inventory[item.type] = 0;
         
-        // Ensure weight is converted to a consistent number (grams or kg)
-        const weightValue = Logic.processWeight(i.weight, i.type);
+        // Convert the weight string (e.g., "1.14") to a number (114)
+        const weightInKg = Logic.processWeight(item.weight);
         
-        // LOGIC FIX: Check action string carefully
-        if (i.action === 'Purchase' || i.action === 'Inward') {
-            inventory[i.type] += weightValue;
-        } else {
-            inventory[i.type] -= weightValue;
+        // Identify if we are adding to stock or removing
+        const action = item.action.toLowerCase();
+        if (action === 'purchase' || action === 'inward' || action === 'stock in') {
+            inventory[item.type] += weightInKg;
+        } else if (action === 'sale' || action === 'outward' || action === 'stock out') {
+            inventory[item.type] -= weightInKg;
         }
     });
-    
-    let html = `<table class="summary-table"><thead><tr><th>Variety</th><th>Net Stock</th></tr></thead><tbody>`;
-    
+
+    let html = `<table class="summary-table">
+                <thead><tr><th>Variety</th><th>Available Stock</th></tr></thead>
+                <tbody>`;
+
     const keys = Object.keys(inventory);
     if (keys.length === 0) {
-        html += `<tr><td colspan="2" style="text-align:center;">No data found</td></tr>`;
+        html += `<tr><td colspan="2" style="text-align:center;">No stock movements found.</td></tr>`;
     } else {
-        keys.forEach(k => {
-            // Use Logic.formatDisplay to turn the number back into "0 Q 00 kg"
-            const netWeight = inventory[k];
-            const displayValue = Logic.formatDisplay(netWeight);
-            const statusColor = netWeight < 0 ? "#c62828" : "#2e7d32";
-            
+        keys.forEach(key => {
+            const netWeight = inventory[key];
+            const color = netWeight < 0 ? "#d32f2f" : "#2e7d32";
             html += `<tr>
-                <td><b>${k}</b></td>
-                <td style="color: ${statusColor}; font-weight: bold;">${displayValue}</td>
+                <td><b>${key}</b></td>
+                <td style="color: ${color}; font-weight: bold;">${Logic.formatDisplay(netWeight)}</td>
             </tr>`;
         });
     }
+    
     document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
 }
+
 
 // 7. UTILITIES (Backup, Toast, Delete)
 

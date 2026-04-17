@@ -8,40 +8,49 @@ const refreshAll = async () => {
     if (typeof generateSummary === "function") await generateSummary();
 };
 
-const switchTab = (tabName) => {
-    console.log("Switching to:", tabName);
+const switchTab = (tabId) => {
+    console.log("Attempting to show:", tabId);
 
-    // 1. Hide ALL content sections
-    const allTabs = document.querySelectorAll('.tab-content');
-    allTabs.forEach(tab => {
-        tab.classList.remove('active');
-        tab.style.display = "none"; // Force hide
+    // 1. Hide all tab content sections
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+        content.style.display = "none"; // Safety force hide
     });
 
-    // 2. Deactivate ALL nav buttons
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    // 2. Remove 'active' styling from all navigation items
+    document.querySelectorAll('.nav-item').forEach(nav => {
+        nav.classList.remove('active');
+    });
 
-    // 3. Find the NEW tab (Example: "inventory" + "-tab")
-    const targetId = tabName + "-tab";
-    const targetContent = document.getElementById(targetId);
-    const navBtn = document.querySelector(`[data-tab="${tabName}"]`);
-
+    // 3. Show the target content (Exactly matching the ID in your HTML)
+    const targetContent = document.getElementById(tabId);
     if (targetContent) {
-        console.log("Found tab:", targetId);
         targetContent.classList.add('active');
-        targetContent.style.display = "block"; // Force show
+        targetContent.style.display = "block"; // Safety force show
     } else {
-        console.error("CRITICAL ERROR: Could not find HTML element with ID:", targetId);
-        alert("Developer Error: Tab '" + targetId + "' is missing in index.html");
+        console.error("Could not find a <div> with id:", tabId);
     }
 
-    if (navBtn) navBtn.classList.add('active');
+    // 4. Highlight the clicked navigation item
+    const targetNav = document.querySelector(`[data-tab="${tabId}"]`);
+    if (targetNav) {
+        targetNav.classList.add('active');
+    }
 
-    // 4. Load data if needed
-    if (tabName === 'history' || tabName === 'summary' || tabName === 'inventory') {
+    // 5. Refresh data if switching to data tabs
+    // Note: Use the IDs exactly as they appear in your HTML
+    if (tabId === 'history-tab' || tabId === 'stock-tab') {
         refreshAll();
     }
 };
+
+// Re-bind your nav items to use the new logic
+document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.onclick = () => {
+        const tabId = btn.getAttribute('data-tab');
+        switchTab(tabId);
+    };
+});
 
 // 2. INITIALIZATION
 window.onload = () => {

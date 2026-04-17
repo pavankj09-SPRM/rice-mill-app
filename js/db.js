@@ -1,7 +1,7 @@
-const db = new Dexie("MillDB_Enterprise_V1");
+const db = new Dexie("RiceMillDB");
 db.version(1).stores({
-    hulling: '++id, date, name, weight, total, status',
-    stock: '++id, date, name, action, type, weight, amount',
-    expenses: '++id, date, name, type, amount',
-    settings: '++id, fullName, category' 
+    hulling: '++id, name, date',
+    stock: '++id, name, date, type',
+    expenses: '++id, name, date',
+    settings: 'name, category' // Add this table for your Varieties
 });

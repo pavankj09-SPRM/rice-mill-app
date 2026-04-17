@@ -375,35 +375,33 @@ async function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
 
-            // Validate structure
-            if (!data.settings || !data.hulling || !data.stock) {
-                throw new Error("Invalid backup format");
-            }
+            if (!confirm("⚠️ Replace all data with backup?")) return;
 
-            if (!confirm("⚠️ This will DELETE all current data and restore backup. Continue?")) return;
-
-            // 1. Clear all tables
             await db.transaction('rw', db.settings, db.hulling, db.stock, db.expenses, async () => {
+
                 await db.settings.clear();
                 await db.hulling.clear();
                 await db.stock.clear();
-                if (db.expenses) await db.expenses.clear();
+                await db.expenses.clear();
 
-                // 2. Use bulkPut (IMPORTANT FIX)
-                await db.settings.bulkPut(data.settings || []);
-                await db.hulling.bulkPut(data.hulling || []);
-                await db.stock.bulkPut(data.stock || []);
-                if (data.expenses && db.expenses) {
-                    await db.expenses.bulkPut(data.expenses);
-                }
+                // ✅ IMPORTANT: remove id before insert
+                const clean = arr => arr.map(x => {
+                    delete x.id;
+                    return x;
+                });
+
+                await db.settings.bulkAdd(clean(data.settings || []));
+                await db.hulling.bulkAdd(clean(data.hulling || []));
+                await db.stock.bulkAdd(clean(data.stock || []));
+                await db.expenses.bulkAdd(clean(data.expenses || []));
             });
 
-            alert("✅ Restore Successful!");
+            alert("✅ Restore successful!");
             location.reload();
 
         } catch (err) {
             console.error(err);
-            alert("❌ Restore Failed: " + err.message);
+            alert("❌ Restore failed: " + err.message);
         }
     };
 

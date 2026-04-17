@@ -1,11 +1,33 @@
-/**
- * js/app.js - Full Integrated Logic
- */
+// --- CORE UI INITIALIZATION ---
+window.onload = () => {
+    // Set default date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('main_date_picker').value = today;
+    refreshAll();
+};
 
-// --- 1. CORE FUNCTIONS ---
+async function refreshAll() {
+    try {
+        await viewDayLog();
+        await generateSummary();
+    } catch (e) {
+        console.error("Refresh Error:", e);
+    }
+}
 
+// --- TAB SWITCHING ---
+document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.onclick = () => {
+        const target = btn.getAttribute('data-tab');
+        document.querySelectorAll('.tab-content, .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+        btn.classList.add('active');
+    };
+});
+
+// --- STOCK LOGIC (PADDY TO RICE) ---
 async function saveStock() {
-    const name = document.getElementById('st_name').value.trim();
+    const name = document.getElementById('st_name').value || "Self Process";
     const weightVal = document.getElementById('st_weight').value;
     const type = document.getElementById('st_type').value;
     const action = document.getElementById('st_action').value;
@@ -13,140 +35,67 @@ async function saveStock() {
 
     if (!weightVal) return alert("Enter Weight");
 
-    // Save Primary Action
     await db.stock.add({
-        name: name || "Internal Process",
-        action: action,
-        type: type,
-        weight: weightVal,
+        name, action, type, weight: weightVal,
         amount: parseFloat(document.getElementById('st_amount').value) || 0,
-        date: date
+        date
     });
 
-    // SELF-HULLING LOGIC: If selling/processing PADDY, create RICE & HUSK
+    // Auto-convert Paddy to Rice/Husk
     if (action === "Sale" && type.toLowerCase().includes("paddy")) {
         const kg = Logic.processWeight(weightVal);
-        const riceWeight = (kg * 0.65) / 100;
-        const huskWeight = (kg * 0.25) / 100;
-
         await db.stock.bulkAdd([
-            { name: "System", action: "Purchase", type: "Common Rice", weight: riceWeight.toFixed(2), date: date },
-            { name: "System", action: "Purchase", type: "Husk Waste", weight: huskWeight.toFixed(2), date: date }
+            { name: "System", action: "Purchase", type: "Common Rice", weight: (kg * 0.65 / 100).toFixed(2), date },
+            { name: "System", action: "Purchase", type: "Husk Waste", weight: (kg * 0.25 / 100).toFixed(2), date }
         ]);
-        showToast("Stock Updated: Paddy converted to Rice/Husk");
     }
-
     document.getElementById('st_weight').value = "";
     refreshAll();
 }
 
+// --- HULLING & HISTORY ---
 async function viewDayLog() {
     const d = document.getElementById('main_date_picker').value;
-    const h = await db.hulling.where('date').equals(d).toArray();
-    
+    const data = await db.hulling.where('date').equals(d).toArray();
     let html = "";
-    h.forEach(x => {
-        html += `<div class="log-card" style="border-left-color: #ff9800">
-            <div><b>${x.name}</b><br><small>${Logic.formatDisplay(Logic.processWeight(x.weight))}</small></div>
-            <div class="log-actions">
-                <button class="btn-sm" style="background:#ff9800" onclick="editHulling(${x.id})">✏️</button>
-                <button class="btn-sm" style="background:#2e7d32" onclick="printSingleBill(${x.id})">📄 Bill</button>
-                <button class="btn-sm" style="background:#c62828" onclick="deleteEntry('hulling', ${x.id})">✕</button>
+    data.forEach(x => {
+        html += `
+        <div class="log-card" style="border-left: 5px solid #ff9800; margin-bottom:10px; padding:10px; background:#fff; display:flex; justify-content:space-between;">
+            <div><b>${x.name}</b><br>${Logic.formatDisplay(Logic.processWeight(x.weight))}</div>
+            <div>
+                <button onclick="editHulling(${x.id})" style="background:#ff9800; color:#fff; border:none; padding:5px 10px; border-radius:4px;">✏️</button>
+                <button onclick="printSingleBill(${x.id})" style="background:#2e7d32; color:#fff; border:none; padding:5px 10px; border-radius:4px;">📄</button>
             </div>
         </div>`;
     });
-    document.getElementById('day_log').innerHTML = html || "No entries today.";
+    document.getElementById('day_log').innerHTML = html || "No entries.";
 }
 
-// --- 2. EDIT & TAB SWITCHING ---
-
-async function editHulling(id) {
-    const entry = await db.hulling.get(id);
-    if (!entry) return;
-
-    // Force Tab Switch
-    document.querySelectorAll('.tab-content, .nav-item').forEach(el => el.classList.remove('active'));
-    document.getElementById('hulling').classList.add('active');
-    const navBtn = document.querySelector('[data-tab="hulling"]');
-    if (navBtn) navBtn.classList.add('active');
-
-    // Fill Form
-    document.getElementById('h_name').value = entry.name;
-    document.getElementById('h_weight').value = entry.weight;
-    document.getElementById('h_status').value = entry.status;
-    document.getElementById('h_rate').value = entry.rate || 150;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    const saveBtn = document.getElementById('btn_save_hulling');
-    saveBtn.innerText = "UPDATE RECORD";
-    saveBtn.style.background = "#ff9800";
-
-    saveBtn.onclick = async () => {
-        const kg = Logic.processWeight(document.getElementById('h_weight').value);
-        const rate = document.getElementById('h_rate').value;
-        await db.hulling.update(id, {
-            name: document.getElementById('h_name').value,
-            weight: document.getElementById('h_weight').value,
-            total: Math.round((kg/100)*rate),
-            status: document.getElementById('h_status').value
-        });
-        saveBtn.innerText = "Save & Record";
-        saveBtn.style.background = "";
-        saveBtn.onclick = saveHulling;
-        refreshAll();
-        document.querySelector('[data-tab="history"]').click();
-    };
-}
-
-// --- 3. INVENTORY SUMMARY (With Empty Bags Fix) ---
-
+// --- SUMMARY ---
 async function generateSummary() {
-    const dStr = document.getElementById('main_date_picker').value;
-    const filter = currentSummaryView === 'month' ? dStr.substring(0, 7) : dStr.substring(0, 4);
-    const allStock = await db.stock.toArray();
-    const filtered = allStock.filter(x => x.date.startsWith(filter));
-    
+    const all = await db.stock.toArray();
     const inventory = {};
-    filtered.forEach(item => {
+    all.forEach(item => {
         if (!inventory[item.type]) inventory[item.type] = 0;
         const w = Logic.processWeight(item.weight);
-        const action = item.action.toLowerCase();
-        inventory[item.type] += (action === 'purchase' || action === 'inward') ? w : -w;
+        inventory[item.type] += (item.action === 'Purchase' || item.action === 'Inward') ? w : -w;
     });
 
-    let html = `<table class="summary-table"><thead><tr><th>Variety</th><th>Net Stock</th></tr></thead><tbody>`;
-    Object.keys(inventory).forEach(key => {
-        const val = inventory[key];
-        const display = key.toLowerCase().includes("bag") ? `${val} Pcs` : Logic.formatDisplay(val);
-        html += `<tr><td><b>${key}</b></td><td style="color:${val < 0 ? 'red':'green'}">${display}</td></tr>`;
+    let html = "<table style='width:100%'><tr><th>Variety</th><th>Stock</th></tr>";
+    Object.keys(inventory).forEach(k => {
+        const display = k.toLowerCase().includes("bag") ? `${inventory[k]} Pcs` : Logic.formatDisplay(inventory[k]);
+        html += `<tr><td>${k}</td><td><b>${display}</b></td></tr>`;
     });
-    document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
+    document.getElementById('summary_display').innerHTML = html + "</table>";
 }
 
-// --- 4. PROFESSIONAL BILL PDF ---
-
+// --- PRINTING ---
 async function printSingleBill(id) {
     const entry = await db.hulling.get(id);
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: [80, 160] });
-
-    doc.rect(2, 2, 76, 156); // Border
-    doc.setFont("helvetica", "bold").setFontSize(11);
-    doc.text("SHRI PARSHWANATHA RICE MILL", 40, 12, { align: "center" });
-    doc.setFontSize(8).setFont("helvetica", "normal");
-    doc.text("Prop: Jwalaprasad K J | Sullalli, Sagar", 40, 18, { align: "center" });
-    doc.line(5, 22, 75, 22);
-
-    doc.text(`Date: ${entry.date}`, 8, 30);
-    doc.text(`Customer: ${entry.name}`, 8, 35);
-    
-    doc.autoTable({
-        startY: 40,
-        head: [['Description', 'Qty', 'Total']],
-        body: [['Paddy Hulling', Logic.formatDisplay(Logic.processWeight(entry.weight)), `Rs.${entry.total}`]],
-        theme: 'grid', styles: { fontSize: 8 }
-    });
-
-    doc.text("THANK YOU!", 40, doc.lastAutoTable.finalY + 15, { align: "center" });
+    const doc = new jsPDF({ unit: 'mm', format: [80, 150] });
+    doc.text("SHRI PARSHWANATHA RICE MILL", 40, 10, { align: "center" });
+    doc.text(`Customer: ${entry.name}`, 10, 20);
+    doc.text(`Total: Rs. ${entry.total}`, 10, 30);
     doc.save(`Bill_${entry.name}.pdf`);
 }

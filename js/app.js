@@ -52,10 +52,12 @@ window.onload = () => {
     const totalInput = document.getElementById('h_total_input');
 
     const calcHulling = () => {
+    // Only auto-calc if the user isn't actively typing in the total box
+    if (document.activeElement !== totalInput) {
         const kg = Logic.processWeight(weightInput.value);
         const rate = parseFloat(rateInput.value) || 0;
-        // Standard formula: (Quintals * Rate)
         totalInput.value = Math.round((kg / 100) * rate);
+        }
     };
 
     weightInput.addEventListener('input', calcHulling);

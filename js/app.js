@@ -118,7 +118,7 @@ async function saveStock() {
     document.getElementById('st_name').value = "";
     
     refreshAll();
-
+}
 
 // --- 5. UI DISPLAY ---
 

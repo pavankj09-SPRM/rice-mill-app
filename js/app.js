@@ -293,6 +293,34 @@ function showToast(text) {
     if (t) { t.innerText = text; t.className = "show"; setTimeout(() => t.className = "", 3000); }
 }
 
+async function importData(event) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            if (confirm("Restore this backup? Current data will be replaced.")) {
+                // Wipe current database tables
+                await db.settings.clear();
+                await db.hulling.clear();
+                await db.stock.clear();
+                
+                // Add data from your JSON backup
+                if (data.settings) await db.settings.bulkAdd(data.settings);
+                if (data.hulling) await db.hulling.bulkAdd(data.hulling);
+                if (data.stock) await db.stock.bulkAdd(data.stock);
+
+                alert("Restore Successful!");
+                location.reload(); // Refresh to show your 31 varieties
+            }
+        } catch (err) {
+            alert("Error reading file: " + err.message);
+        }
+    };
+    reader.readAsText(event.target.files[0]);
+}
+
+/*
 // Add this at the bottom of js/app.js
 async function importData(event) {
     const file = event.target.files[0];
@@ -331,3 +359,4 @@ async function importData(event) {
     };
     reader.readAsText(file);
 }
+*/

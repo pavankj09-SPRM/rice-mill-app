@@ -36,7 +36,75 @@ const switchTab = (tabId) => {
     }
 };
 
+window.onload = () => {
+    // 1. Set Default Date
+    const today = new Date().toISOString().split('T')[0];
+    const datePicker = document.getElementById('main_date_picker');
+    if (datePicker) {
+        datePicker.value = today;
+        datePicker.onchange = window.refreshAll;
+    }
+
+    // 2. Bind Navigation
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.onclick = () => switchTab(btn.getAttribute('data-tab'));
+    });
+
+    // 3. Bind Main Action Buttons
+    const bind = (id, func) => {
+        const el = document.getElementById(id);
+        if (el) el.onclick = func;
+    };
+
+    bind('btn_save_hulling', saveHulling);
+    bind('btn_save_stock', saveStock);
+    bind('btn_add_variety', addNewVariety);
+    bind('btn_backup', exportData);
+    bind('btn_master_reset', async () => {
+        if(confirm("DANGER: This wipes everything! Continue?")) {
+            await db.delete();
+            location.reload();
+        }
+    });
+
+    // 4. Bind Restore Logic (Using local scope to prevent SyntaxErrors)
+    const restoreTrigger = document.getElementById('btn_restore_trigger');
+    const hiddenInput = document.getElementById('import_file');
+
+    if (restoreTrigger && hiddenInput) {
+        restoreTrigger.onclick = () => hiddenInput.click();
+        hiddenInput.onchange = (e) => importData(e);
+    }
+
+    // 5. Initial Calculations
+    setupAutoCalculations();
+
+    // 6. Start App
+    switchTab('hulling-tab');
+    window.refreshAll();
+};
+
+// Separate helper to keep window.onload clean
+function setupAutoCalculations() {
+    const hWeight = document.getElementById('h_weight');
+    const hRate = document.getElementById('h_rate');
+    const hTotal = document.getElementById('h_total_input');
+    
+    const runHullingCalc = () => {
+        if (document.activeElement !== hTotal) {
+            const kg = Logic.processWeight(hWeight.value);
+            const rate = parseFloat(hRate.value) || 0;
+            hTotal.value = Math.round((kg / 100) * rate);
+        }
+    };
+
+    if (hWeight && hRate) {
+        hWeight.oninput = runHullingCalc;
+        hRate.oninput = runHullingCalc;
+    }
+}
 // --- 3. INITIALIZATION ---
+/*
 window.onload = () => {
     const today = new Date().toISOString().split('T')[0];
     const dp = document.getElementById('main_date_picker');
@@ -106,6 +174,8 @@ window.onload = () => {
     switchTab('hulling-tab');
     window.refreshAll();
 };
+
+*/
 
 // --- 4. SMART DROPDOWNS & SETTINGS ---
 async function loadDropdowns() {

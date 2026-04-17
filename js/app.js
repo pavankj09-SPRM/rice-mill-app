@@ -132,18 +132,43 @@ async function saveStock() {
 }
 
 // --- 5. SETTINGS & VARIETIES ---
-function addNewVariety() {
+// Save a new variety to the database
+async function addNewVariety() {
     const name = document.getElementById('new_item_val').value.trim();
-    const cat = document.getElementById('new_item_cat').value;
-    if (!name) return alert("Enter a name");
+    const category = document.getElementById('new_item_cat').value; // paddy, rice, or misc
+    
+    if (!name) return alert("Enter variety name");
 
-    const select = document.getElementById('st_type');
-    const opt = document.createElement("option");
-    opt.text = `${name} (${cat})`;
-    select.add(opt);
-
+    await db.settings.put({ name, category });
     document.getElementById('new_item_val').value = "";
-    showToast(`${name} added to list!`);
+    showToast(`${name} saved!`);
+    loadDropdowns(); // Refresh the dropdowns immediately
+}
+
+// Populate the Stock Dropdown with smart filtering
+async function loadDropdowns() {
+    const allSettings = await db.settings.toArray();
+    const stockSelect = document.getElementById('st_type');
+    stockSelect.innerHTML = ""; // Clear existing
+
+    allSettings.forEach(item => {
+        if (item.category === 'paddy') {
+            // Paddy gets the extra details you requested
+            const types = ["New-White", "Old-White", "New-Red", "Old-Red"];
+            types.forEach(t => {
+                let opt = document.createElement("option");
+                opt.value = `${item.name} (${t})`;
+                opt.text = `🌾 ${item.name} - ${t}`;
+                stockSelect.add(opt);
+            });
+        } else {
+            // Rice and Misc (Husk, Bags, Diesel) stay simple
+            let opt = document.createElement("option");
+            opt.value = item.name;
+            opt.text = (item.category === 'rice' ? "🍚 " : "📦 ") + item.name;
+            stockSelect.add(opt);
+        }
+    });
 }
 
 // --- 6. BACKUP & RESTORE ---

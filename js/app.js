@@ -50,7 +50,7 @@ window.onload = () => {
     const weightInput = document.getElementById('h_weight');
     const rateInput = document.getElementById('h_rate');
     const totalInput = document.getElementById('h_total_input');
-
+    
     const calcHulling = () => {
     // Only auto-calc if the user isn't actively typing in the total box
     if (document.activeElement !== totalInput) {
@@ -62,6 +62,9 @@ window.onload = () => {
 
     weightInput.addEventListener('input', calcHulling);
     rateInput.addEventListener('input', calcHulling);
+
+    // Add this to your window.onload so it updates when you toggle Purchase/Sale
+    document.getElementById('st_action').onchange = loadDropdowns;
     
     // Navigation Binding
     document.querySelectorAll('.nav-item').forEach(btn => {
@@ -88,7 +91,7 @@ window.onload = () => {
 
     // Add Variety Binding
     bindClick('btn_add_variety', addNewVariety);
-
+    
     // Default Startup
     switchTab('hulling-tab');
     refreshAll();
@@ -149,29 +152,40 @@ async function addNewVariety() {
 
 // Populate the Stock Dropdown with smart filtering
 async function loadDropdowns() {
+    const action = document.getElementById('st_action').value; // Purchase, Sale, etc.
     const allSettings = await db.settings.toArray();
     const stockSelect = document.getElementById('st_type');
-    stockSelect.innerHTML = ""; // Clear existing
+    const settingsList = document.getElementById('settings_grid'); // For the Settings Tab list
+    
+    stockSelect.innerHTML = ""; 
+    if (settingsList) settingsList.innerHTML = ""; // Clear the list in Settings tab
 
     allSettings.forEach(item => {
-        if (item.category === 'paddy') {
-            // Paddy gets the extra details you requested
-            const types = ["New-White", "Old-White", "New-Red", "Old-Red"];
-            types.forEach(t => {
-                let opt = document.createElement("option");
-                opt.value = `${item.name} (${t})`;
-                opt.text = `🌾 ${item.name} - ${t}`;
-                stockSelect.add(opt);
+        // 1. Update the list visibility in the SETTINGS TAB
+        if (settingsList) {
+            settingsList.innerHTML += `
+                <div class="item-row">
+                    <span>${item.name} (${item.category})</span>
+                    <button class="btn-sm" style="background:red" onclick="deleteVariety('${item.name}')">Delete</button>
+                </div>`;
+        }
+
+        // 2. Filter the STOCK dropdown based on Action
+        if (action === "Purchase" && item.category === "paddy") {
+            ["New-White", "Old-White", "New-Red", "Old-Red"].forEach(t => {
+                stockSelect.add(new Option(`🌾 ${item.name} - ${t}`, `${item.name} (${t})`));
             });
-        } else {
-            // Rice and Misc (Husk, Bags, Diesel) stay simple
-            let opt = document.createElement("option");
-            opt.value = item.name;
-            opt.text = (item.category === 'rice' ? "🍚 " : "📦 ") + item.name;
-            stockSelect.add(opt);
+        } 
+        else if (action === "Sale" && item.category === "rice") {
+            stockSelect.add(new Option(`🍚 ${item.name}`, item.name));
+        }
+        else if (item.category === "misc") {
+            stockSelect.add(new Option(`📦 ${item.name}`, item.name));
         }
     });
 }
+
+
 
 // --- 6. BACKUP & RESTORE ---
 async function exportData() {

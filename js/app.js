@@ -1,13 +1,14 @@
 /**
- * js/app.js - Unified Enterprise Logic
+ * js/app.js - Shri Parshwanatha Rice Mill (Enterprise Edition)
  */
 
 // --- 1. CORE REFRESH LOGIC ---
-// Ensure this is only declared ONCE
 const refreshAll = async () => {
     try {
         await viewDayLog();
         await generateSummary();
+        // If you have dashboard logic, call it here:
+        // if (typeof updateDashboard === "function") updateDashboard();
     } catch (e) { 
         console.error("Refresh Error:", e); 
     }
@@ -15,12 +16,10 @@ const refreshAll = async () => {
 
 // --- 2. THE TAB SWITCHER ---
 const switchTab = (tabId) => {
-    // Hide all contents
     document.querySelectorAll('.tab-content').forEach(c => {
         c.classList.remove('active');
         c.style.display = "none";
     });
-    // Deactivate all nav buttons
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
     const target = document.getElementById(tabId);
@@ -32,8 +31,8 @@ const switchTab = (tabId) => {
     }
     if (nav) nav.classList.add('active');
 
-    // Only refresh data on specific tabs to save memory
-    if (tabId === 'history-tab' || tabId === 'stock-tab' || tabId === 'dashboard-tab') {
+    // Auto-refresh when entering data-heavy tabs
+    if (['history-tab', 'stock-tab', 'dashboard-tab'].includes(tabId)) {
         refreshAll();
     }
 };
@@ -47,29 +46,33 @@ window.onload = () => {
         dp.onchange = refreshAll;
     }
 
-    // Bind Navigation Clicks
+    // Navigation Binding
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.onclick = () => switchTab(btn.getAttribute('data-tab'));
     });
 
-    // Bind Save Buttons (Matching your HTML IDs)
-    if (document.getElementById('btn_save_hulling')) 
-        document.getElementById('btn_save_hulling').onclick = saveHulling;
-    
-    if (document.getElementById('btn_save_stock')) 
-        document.getElementById('btn_save_stock').onclick = saveStock;
+    // Button Bindings
+    const bindClick = (id, func) => {
+        const el = document.getElementById(id);
+        if (el) el.onclick = func;
+    };
 
-    // Bind Backup/Restore Buttons
-    if (document.getElementById('btn_backup')) 
-        document.getElementById('btn_backup').onclick = exportData;
+    bindClick('btn_save_hulling', saveHulling);
+    bindClick('btn_save_stock', saveStock);
+    bindClick('btn_backup', exportData);
     
-    if (document.getElementById('btn_restore_trigger')) {
-        document.getElementById('btn_restore_trigger').onclick = () => {
-            document.getElementById('import_file').click();
-        };
+    // Restore Trigger
+    const restoreBtn = document.getElementById('btn_restore_trigger');
+    const fileInput = document.getElementById('import_file');
+    if (restoreBtn && fileInput) {
+        restoreBtn.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => importData(e);
     }
 
-    // Default startup
+    // Add Variety Binding
+    bindClick('btn_add_variety', addNewVariety);
+
+    // Default Startup
     switchTab('hulling-tab');
     refreshAll();
 };
@@ -113,25 +116,33 @@ async function saveStock() {
     refreshAll();
 }
 
-// --- 5. BACKUP & RESTORE (MATCHING YOUR HTML) ---
-async function exportData() {
-    try {
-        const hulling = await db.hulling.toArray();
-        const stock = await db.stock.toArray();
-        const backupData = JSON.stringify({ hulling, stock });
-        
-        const blob = new Blob([backupData], { type: "application/json" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `Mill_Backup_${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        showToast("Backup Created!");
-    } catch (err) {
-        alert("Export Failed: " + err);
-    }
+// --- 5. SETTINGS & VARIETIES ---
+function addNewVariety() {
+    const name = document.getElementById('new_item_val').value.trim();
+    const cat = document.getElementById('new_item_cat').value;
+    if (!name) return alert("Enter a name");
+
+    const select = document.getElementById('st_type');
+    const opt = document.createElement("option");
+    opt.text = `${name} (${cat})`;
+    select.add(opt);
+
+    document.getElementById('new_item_val').value = "";
+    showToast(`${name} added to list!`);
 }
 
-// This function handles the actual file import
+// --- 6. BACKUP & RESTORE ---
+async function exportData() {
+    const hulling = await db.hulling.toArray();
+    const stock = await db.stock.toArray();
+    const blob = new Blob([JSON.stringify({hulling, stock})], {type: "application/json"});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Mill_Backup_${new Date().toLocaleDateString()}.json`;
+    link.click();
+    showToast("Backup Created!");
+}
+
 function importData(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -140,10 +151,7 @@ function importData(event) {
     reader.onload = async (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            if (!data.hulling || !data.stock) throw new Error("Invalid file format");
-
-            // Confirmation before wiping data
-            if (confirm("This will replace your current data with the backup. Continue?")) {
+            if (confirm("Restore this backup? Current data will be replaced.")) {
                 await db.hulling.clear();
                 await db.stock.clear();
                 await db.hulling.bulkAdd(data.hulling);
@@ -152,31 +160,25 @@ function importData(event) {
                 location.reload();
             }
         } catch (err) {
-            alert("Restore Failed: Make sure it's a valid .json backup file.");
-            console.error(err);
+            alert("Error: Invalid backup file format.");
         }
     };
     reader.readAsText(file);
 }
 
-// Add event listener for the file input itself
-if (document.getElementById('import_file')) {
-    document.getElementById('import_file').onchange = (e) => importData(e);
-}
-
-// --- 6. UI HELPERS ---
+// --- 7. UI HELPERS ---
 async function viewDayLog() {
     const d = document.getElementById('main_date_picker').value;
     const items = await db.hulling.where('date').equals(d).toArray();
     let html = "";
     items.forEach(x => {
-        html += `<div class="card" style="border-left:5px solid orange; display:flex; justify-content:space-between; margin-bottom:10px;">
+        html += `<div class="log-card" style="border-left: 5px solid orange; display:flex; justify-content:space-between; margin-bottom:8px; padding:10px; background:#fff; border-radius:8px;">
             <div><b>${x.name}</b><br><small>${x.weight} Q</small></div>
             <span style="color:${x.status==='Paid'?'green':'red'}">${x.status}</span>
         </div>`;
     });
     const log = document.getElementById('day_log');
-    if (log) log.innerHTML = html || "No records for today.";
+    if (log) log.innerHTML = html || "No records.";
 }
 
 async function generateSummary() {
@@ -187,7 +189,7 @@ async function generateSummary() {
         const w = Logic.processWeight(i.weight);
         inv[i.type] += (i.action === 'Purchase' || i.action === 'Inward') ? w : -w;
     });
-    let html = "<table class='summary-table'><tr><th>Variety</th><th>Net Stock</th></tr>";
+    let html = "<table class='summary-table' style='width:100%'><tr><th>Variety</th><th>Net Stock</th></tr>";
     Object.keys(inv).forEach(k => {
         html += `<tr><td>${k}</td><td><b>${inv[k].toFixed(2)} Q</b></td></tr>`;
     });

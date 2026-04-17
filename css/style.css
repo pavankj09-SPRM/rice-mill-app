@@ -1,4 +1,4 @@
-#toast {
+/*#toast {
     visibility: hidden;
     min-width: 250px;
     background-color: #333;
@@ -22,115 +22,75 @@
 
 @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 100px; opacity: 1;} }
 @keyframes fadeout { from {bottom: 100px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+*/
 
-
+/* PARSHWANATHA RICE MILL - CUSTOM UI */
 :root {
-    --primary: #2e7d32;    /* Rice Mill Green */
-    --secondary: #1b5e20;
-    --accent: #ff9800;     /* Edit/Alert Orange */
+    --primary: #673ab7;
+    --accent: #ff9800;
+    --success: #4caf50;
+    --danger: #f44336;
     --bg: #f4f7f6;
-    --card: #ffffff;
-    --text: #333;
 }
 
-body {
-    background-color: var(--bg);
-    margin: 0;
-    font-family: 'Inter', sans-serif;
-    padding-bottom: 80px; /* Space for Bottom Nav */
+body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding-bottom: 80px; }
+header { background: var(--primary); color: white; padding: 15px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.container { padding: 15px; max-width: 600px; margin: auto; }
+.card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; }
+
+/* YOUR CUSTOM CSS FIXES */
+.btn-sm {
+    width: auto;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    margin-left: 5px;
+    display: inline-block;
 }
 
-/* Card Styling */
-.card {
-    background: var(--card);
-    border-radius: 12px;
-    padding: 20px;
-    margin: 15px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    border: 1px solid #e0e0e0;
-}
-
-.card h3 {
-    margin-top: 0;
-    color: var(--primary);
-    font-size: 1.1rem;
-    border-bottom: 2px solid var(--bg);
-    padding-bottom: 10px;
-}
-
-/* Form Inputs */
-input, select {
-    width: 100%;
-    padding: 12px;
-    margin-bottom: 12px;
-    border: 1.5px solid #ddd;
-    border-radius: 8px;
-    box-sizing: border-box;
-    font-size: 1rem;
-    transition: border-color 0.3s;
-}
-
-input:focus {
-    border-color: var(--primary);
-    outline: none;
-}
-
-.readonly-total {
-    background: #f9f9f9;
-    font-weight: bold;
-    color: var(--secondary);
-    text-align: right;
-    border: 1.5px dashed var(--primary);
-}
-
-/* Grid for Rate and Status */
-.grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-
-/* Buttons */
-button {
-    width: 100%;
-    padding: 15px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: bold;
-    font-size: 1rem;
-    cursor: pointer;
-    box-shadow: 0 4px 6px rgba(46, 125, 50, 0.2);
-}
-
-button:active { transform: scale(0.98); }
-
-/* Bottom Nav - Professional Look */
-.nav-bar {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background: white;
+.item-row {
     display: flex;
-    border-top: 1px solid #eee;
-    padding: 10px 0;
-    box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
-}
-
-.nav-item {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    color: #888;
-    font-size: 0.7rem;
-    cursor: pointer;
+    padding: 10px 14px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 0.95rem;
 }
 
-.nav-item.active { color: var(--primary); font-weight: bold; }
-.nav-item span:first-child { font-size: 1.4rem; margin-bottom: 2px; }
+.log-card {
+    background: white;
+    border-left: 6px solid var(--accent);
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
 
-/* Tab Visibility Logic */
+.log-actions { display: flex; gap: 5px; align-items: center; }
+
+/* Tabs & Nav */
 .tab-content { display: none; }
 .tab-content.active { display: block; }
+.nav-bar { position: fixed; bottom: 0; width: 100%; display: flex; background: white; border-top: 1px solid #ddd; height: 65px; z-index: 1000; }
+.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: #666; cursor: pointer; }
+.nav-item.active { color: var(--primary); font-weight: bold; border-top: 3px solid var(--primary); }
+
+/* Inputs & Buttons */
+input, select, button { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+button:active { transform: scale(0.98); }
+
+/* Toast */
+#toast { visibility: hidden; min-width: 200px; background: #333; color: #fff; text-align: center; border-radius: 30px; padding: 12px; position: fixed; z-index: 1001; left: 50%; bottom: 100px; transform: translateX(-50%); }
+#toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+@keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 100px; opacity: 1;} }
+@keyframes fadeout { from {bottom: 100px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+.summary-table { width: 100%; border-collapse: collapse; }
+.summary-table th, .summary-table td { padding: 12px; border-bottom: 1px solid #eee; }

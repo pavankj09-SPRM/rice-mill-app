@@ -163,6 +163,7 @@ async function addNewVariety() {
     loadDropdowns(); // Refresh the dropdowns immediately
 }
 
+/*
 // Populate the Stock Dropdown with smart filtering
 async function loadDropdowns() {
     const action = document.getElementById('st_action').value; // Purchase, Sale, etc.
@@ -197,8 +198,29 @@ async function loadDropdowns() {
         }
     });
 }
+*/
+async function loadDropdowns() {
+    const action = document.getElementById('st_action').value;
+    const allSettings = await db.settings.toArray();
+    const stockSelect = document.getElementById('st_type');
+    stockSelect.innerHTML = ""; 
 
+    allSettings.forEach(item => {
+        const itemName = item.fullName || item.name;
 
+        if (action === "Purchase" && item.category === "paddy") {
+            ["White-New", "White-Old", "Red-New", "Red-Old"].forEach(t => {
+                stockSelect.add(new Option(`🌾 ${itemName} (${t})`, `${itemName} (${t})`));
+            });
+        } 
+        else if (action === "Sale" && item.category === "rice") {
+            stockSelect.add(new Option(`🍚 ${itemName}`, itemName));
+        }
+        else if (action === "Misc" && item.category === "misc") {
+            stockSelect.add(new Option(`📦 ${itemName}`, itemName));
+        }
+    });
+}
 
 // --- 6. BACKUP & RESTORE ---
 async function exportData() {
@@ -283,6 +305,57 @@ async function generateSummary() {
     });
     const display = document.getElementById('summary_display');
     if (display) display.innerHTML = html + "</table>";
+}
+
+async function refreshSettingsList() {
+    const settingsList = document.getElementById('settings_grid');
+    if (!settingsList) return;
+    
+    const allSettings = await db.settings.toArray();
+    settingsList.innerHTML = "<h3>Current Varieties</h3>";
+    
+    allSettings.forEach(item => {
+        // Fallback to 'name' if 'fullName' is missing
+        const displayName = item.fullName || item.name; 
+        settingsList.innerHTML += `
+            <div class="item-row">
+                <span><b>${item.category.toUpperCase()}:</b> ${displayName}</span>
+                <button class="btn-sm" style="background:#f44336; color:white;" onclick="deleteVariety(${item.id})">Delete</button>
+            </div>`;
+    });
+    loadDropdowns(); // Update stock dropdowns whenever list changes
+}
+
+async function generateBillPDF(id, table) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const data = await db[table].get(Number(id));
+
+    // Header for Shri Parshwanatha Rice Mill
+    doc.setFontSize(20);
+    doc.text("SHRI PARSHWANATHA RICE MILL", 105, 20, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("Proprietor: Jwalaprasad K J | Sagara, Shimoga", 105, 27, { align: "center" });
+    doc.text("Phone: [Your Phone] | Date: " + data.date, 105, 32, { align: "center" });
+    doc.line(20, 35, 190, 35);
+
+    // Table Content
+    const rows = [[
+        table === 'hulling' ? "Hulling Service" : data.type,
+        data.weight + " Q",
+        "₹" + (data.rate || "-"),
+        "₹" + (data.total || data.amount)
+    ]];
+
+    doc.autoTable({
+        startY: 45,
+        head: [['Description', 'Weight', 'Rate', 'Total']],
+        body: rows,
+        theme: 'striped',
+        headStyles: { fillColor: [103, 58, 183] }
+    });
+
+    doc.save(`${data.name}_Bill.pdf`);
 }
 
 function showToast(text) {

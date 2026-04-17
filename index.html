@@ -1,129 +1,25 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Parshwanatha Rice Mill</title>
-    <link rel="stylesheet" href="css/style.css">
-    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-</head>
-<body>
+<div class="nav-bar">
+    <div class="nav-item" data-tab="hulling-tab">🌾 Hulling</div>
+    <div class="nav-item" data-tab="stock-tab">📦 Stock</div>
+    <div class="nav-item" data-tab="history-tab">🕒 History</div>
+    <div class="nav-item" data-tab="settings-tab">⚙️ Settings</div>
+</div>
 
-    <header>
-        <h1>SHRI PARSHWANATHA RICE MILL</h1>
-    </header>
-
-    <div id="toast">Saved Successfully!</div>
-
-    <div class="container">
-        <div class="card date-header">
-            <label>📅 SELECTED DATE:</label>
-            <input type="date" id="main_date_picker">
-        </div>
-
-        <div id="hulling-tab" class="tab-content">
-            <div class="card">
-                <h3>New Hulling Entry</h3>
-                <input type="text" id="h_name" placeholder="Customer Name">
-                <input type="number" step="0.01" id="h_weight" placeholder="Paddy Weight (Ex: 1.50)">
-                <div class="grid-2">
-                    <input type="number" id="h_rate" value="150" placeholder="Rate">
-                    <select id="h_status">
-                        <option value="Paid">Paid</option>
-                        <option value="Pending">Pending</option>
-                    </select>
-                </div>
-                <label>Calculated Total (Rs):</label>
-                <input type="number" id="h_total_input" readonly class="readonly-total">
-                <button id="btn_save_hulling" class="btn-save">Save & Record</button>
-            </div>
-        </div>
-
-        <div id="stock-tab" class="tab-content">
-            <div class="card">
-                <h3>Stock Update</h3>
-                <input type="text" id="st_name" placeholder="Supplier / Customer Name">
-                
-                <label>Item Type:</label>
-                <select id="st_type">
-                    <option>Common Paddy</option>
-                    <option>Common Rice</option>
-                    <option>Husk Waste</option>
-                    <option>New Empty Bags</option>
-                    <option>Used Empty Bags</option>
-                </select>
-
-                <label>Action:</label>
-                <select id="st_action">
-                    <option value="Purchase">Inward (Add to Stock)</option>
-                    <option value="Sale">Outward (Sell/Process)</option>
-                </select>
-
-                <label>Weight (Q.kg) or Bags (Qty):</label>
-                <input type="number" step="0.01" id="st_weight" placeholder="Ex: 10.50">
-                
-                <button id="btn_save_stock" class="btn-save">Update Inventory</button>
-            </div>
-
-            <div class="card">
-                <h3>Live Inventory Summary</h3>
-                <div id="summary_display">
-                    </div>
-            </div>
-        </div>
-
-        <div id="history-tab" class="tab-content">
-            <div class="card">
-                <h3>Hulling Logs</h3>
-                <div id="day_log">
-                    </div>
-            </div>
-        </div>
-
-        <div id="expenses-tab" class="tab-content">
-            <div class="card">
-                <h3>Bills & Expenses</h3>
-                <p style="text-align: center; color: #888;">Coming Soon: Expense Tracking</p>
-            </div>
-        </div>
-
-        <div id="dashboard-tab" class="tab-content">
-            <div class="card">
-                <h3>Business Dashboard</h3>
-                <p style="text-align: center; color: #888;">Coming Soon: Monthly Reports</p>
-            </div>
-        </div>
-
-        <div id="settings-tab" class="tab-content">
-            <div class="card">
-                <h3>Settings</h3>
-                <button onclick="location.reload()" style="background: #666;">Reload App</button>
-                <p style="font-size: 10px; margin-top: 10px; color: #aaa;">Version 2.0.4</p>
-            </div>
-        </div>
-
+<div id="settings-tab" class="tab-content">
+    <div class="card">
+        <h3>🌾 Add Varieties</h3>
+        <input type="text" id="new_item_name" placeholder="Variety Name">
+        <select id="new_item_category">
+            <option value="Paddy">Paddy</option>
+            <option value="Rice">Rice</option>
+        </select>
+        <button onclick="addNewVariety()">+ Add Variety</button>
     </div>
 
-    <div class="nav-bar">
-        <div class="nav-item active" data-tab="hulling-tab">
-            <span>🌾</span><span>Hulling</span>
-        </div>
-        <div class="nav-item" data-tab="stock-tab">
-            <span>📦</span><span>Stock</span>
-        </div>
-        <div class="nav-item" data-tab="history-tab">
-            <span>🕒</span><span>History</span>
-        </div>
-        <div class="nav-item" data-tab="expenses-tab">
-            <span>💵</span><span>Bills</span>
-        </div>
-        <div class="nav-item" data-tab="dashboard-tab">
-            <span>📈</span><span>Dash</span>
-        </div>
+    <div class="card">
+        <h3>💾 Data Management</h3>
+        <button onclick="exportData()" style="background: #4CAF50;">Export Backup</button>
+        <button onclick="document.getElementById('importFile').click()" style="background: #2196F3;">Restore Backup</button>
+        <input type="file" id="importFile" style="display:none" onchange="importData(event)">
     </div>
-
-    <script src="js/db.js"></script>
-    <script src="js/logic.js"></script>
-    <script src="js/app.js"></script>
-</body>
-</html>
+</div>

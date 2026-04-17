@@ -46,6 +46,21 @@ window.onload = () => {
         dp.onchange = refreshAll;
     }
 
+    // Auto-calculate Hulling Total but keep it editable
+    const weightInput = document.getElementById('h_weight');
+    const rateInput = document.getElementById('h_rate');
+    const totalInput = document.getElementById('h_total_input');
+
+    const calcHulling = () => {
+        const kg = Logic.processWeight(weightInput.value);
+        const rate = parseFloat(rateInput.value) || 0;
+        // Standard formula: (Quintals * Rate)
+        totalInput.value = Math.round((kg / 100) * rate);
+    };
+
+    weightInput.addEventListener('input', calcHulling);
+    rateInput.addEventListener('input', calcHulling);
+    
     // Navigation Binding
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.onclick = () => switchTab(btn.getAttribute('data-tab'));

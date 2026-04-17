@@ -1,55 +1,113 @@
-/* --- TAB SYSTEM --- */
+:root {
+    --primary: #2e7d32;    /* Rice Mill Green */
+    --secondary: #1b5e20;
+    --accent: #ff9800;     /* Edit/Alert Orange */
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --text: #333333;
+}
 
-/* Hide all tab contents by default */
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    padding-bottom: 80px; /* Space for Nav */
+}
+
+/* Header Design */
+header {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+    padding: 20px 15px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+header h1 { margin: 0; font-size: 1.2rem; letter-spacing: 1px; }
+
+/* Professional Cards */
 .tab-content {
     display: none;
+    max-width: 500px;
+    margin: 15px auto;
+    padding: 0 15px;
+}
+
+.tab-content.active { display: block; }
+
+.card {
+    background: var(--card);
+    border-radius: 12px;
     padding: 20px;
-    animation: fadeIn 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
 }
 
-/* Only show the active tab */
-.tab-content.active {
-    display: block;
+/* Form Inputs */
+label { font-size: 0.85rem; font-weight: 600; color: #666; display: block; margin-bottom: 5px; }
+
+input, select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-size: 1rem;
 }
 
-/* Animation for professional feel */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+/* Buttons */
+button {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.1s;
 }
 
-/* --- NAVIGATION BAR --- */
+button:active { transform: scale(0.98); }
+
+.btn-primary { background: var(--primary); color: white; }
+.btn-save { background: var(--secondary); color: white; margin-top: 10px; }
+
+/* Bottom Navigation */
 .nav-bar {
     position: fixed;
     bottom: 0;
-    left: 0;
     width: 100%;
+    background: white;
     display: flex;
-    background: #ffffff;
-    border-top: 1px solid #ddd;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-    z-index: 1000;
+    justify-content: space-around;
+    border-top: 1px solid #eee;
+    padding: 10px 0;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
 }
 
 .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #888;
+    font-size: 11px;
+    text-decoration: none;
     flex: 1;
-    text-align: center;
-    padding: 12px 0;
-    font-size: 12px;
-    color: #666;
-    cursor: pointer;
-    transition: 0.3s;
 }
 
-.nav-item.active {
-    color: #2e7d32; /* Mill Green */
-    font-weight: bold;
-    border-top: 3px solid #2e7d32;
+.nav-item.active { color: var(--primary); font-weight: bold; }
+.nav-item i { font-size: 20px; margin-bottom: 4px; }
+
+/* Summary Table */
+.summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
-/* Adjust main body so it doesn't hide behind the nav bar */
-body {
-    padding-bottom: 70px;
-    background-color: #f5f5f5;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+.summary-table th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 0.8rem; color: #888; }
+.summary-table td { padding: 15px 12px; border-top: 1px solid #eee; }

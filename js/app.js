@@ -44,7 +44,19 @@ window.onload = () => {
         dp.value = today;
         dp.onchange = window.refreshAll;
     }
+    
+    //the hidden file input to run this function whenever a file is selected
+    const restoreBtn = document.getElementById('btn_restore_trigger');
+    const fileInput = document.getElementById('import_file');
 
+    if (restoreBtn && fileInput) {
+        // When you click the "Restore Backup" button, it clicks the hidden file input
+        restoreBtn.onclick = () => fileInput.click();
+
+        // When a file is picked, it runs the importData function
+        fileInput.onchange = (e) => importData(e);
+    }
+    
     // Navigation
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.onclick = () => switchTab(btn.getAttribute('data-tab'));
@@ -279,4 +291,43 @@ async function generateSummary() {
 function showToast(text) {
     const t = document.getElementById('toast');
     if (t) { t.innerText = text; t.className = "show"; setTimeout(() => t.className = "", 3000); }
+}
+
+// Add this at the bottom of js/app.js
+async function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            // Validate the JSON structure
+            if (!data.settings || !data.hulling || !data.stock) {
+                throw new Error("Invalid backup file format");
+            }
+
+            if (confirm("Restore this backup? Current data will be replaced.")) {
+                // Clear all existing data
+                await db.settings.clear();
+                await db.hulling.clear();
+                await db.stock.clear();
+                if (db.expenses) await db.expenses.clear();
+
+                // Bulk add data from your JSON file
+                await db.settings.bulkAdd(data.settings);
+                await db.hulling.bulkAdd(data.hulling);
+                await db.stock.bulkAdd(data.stock);
+                if (data.expenses && db.expenses) await db.expenses.bulkAdd(data.expenses);
+
+                alert("Restore Successful!");
+                location.reload(); // Refresh the page to show the new data
+            }
+        } catch (err) {
+            alert("Restore Failed: " + err.message);
+            console.error(err);
+        }
+    };
+    reader.readAsText(file);
 }

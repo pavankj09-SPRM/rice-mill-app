@@ -50,6 +50,19 @@ window.onload = () => {
     const weightInput = document.getElementById('h_weight');
     const rateInput = document.getElementById('h_rate');
     const totalInput = document.getElementById('h_total_input');
+
+    const stWeight = document.getElementById('st_weight');
+    const stRate = document.getElementById('st_rate');
+    const stAmount = document.getElementById('st_amount');
+
+    const calcStock = () => {
+        const w = parseFloat(stWeight.value) || 0;
+        const r = parseFloat(stRate.value) || 0;
+        stAmount.value = Math.round(w * r);
+    };
+
+stWeight.oninput = calcStock;
+stRate.oninput = calcStock;
     
     const calcHulling = () => {
     // Only auto-calc if the user isn't actively typing in the total box
@@ -225,16 +238,35 @@ function importData(event) {
 // --- 7. UI HELPERS ---
 async function viewDayLog() {
     const d = document.getElementById('main_date_picker').value;
-    const items = await db.hulling.where('date').equals(d).toArray();
+    const hulling = await db.hulling.where('date').equals(d).toArray();
+    const stock = await db.stock.where('date').equals(d).toArray();
+    
     let html = "";
-    items.forEach(x => {
-        html += `<div class="log-card" style="border-left: 5px solid orange; display:flex; justify-content:space-between; margin-bottom:8px; padding:10px; background:#fff; border-radius:8px;">
-            <div><b>${x.name}</b><br><small>${x.weight} Q</small></div>
-            <span style="color:${x.status==='Paid'?'green':'red'}">${x.status}</span>
+    
+    // Combined list of activities
+    [...hulling, ...stock].forEach(x => {
+        const isHulling = x.rate && !x.action;
+        html += `
+        <div class="log-card" style="border-left: 6px solid ${isHulling ? '#673ab7' : '#ff9800'}">
+            <div>
+                <b>${x.name}</b> <small>(${isHulling ? 'Hulling' : x.type})</small><br>
+                <span>${x.weight} Q | ₹${x.total || x.amount || 0}</span>
+            </div>
+            <div class="log-actions">
+                <button class="btn-sm" onclick="generateBillPDF('${x.id}')">PDF</button>
+                <button class="btn-sm" style="background:#f44336" onclick="deleteEntry('${x.id}', '${isHulling ? 'hulling' : 'stock'}')">Del</button>
+            </div>
         </div>`;
     });
-    const log = document.getElementById('day_log');
-    if (log) log.innerHTML = html || "No records.";
+    
+    document.getElementById('day_log').innerHTML = html || "No records for today.";
+}
+
+async function deleteEntry(id, table) {
+    if(confirm("Delete this entry?")) {
+        await db[table].delete(Number(id));
+        refreshAll();
+    }
 }
 
 async function generateSummary() {

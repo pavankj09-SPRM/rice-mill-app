@@ -365,6 +365,7 @@ async function deleteEntry(id, table) {
 }
 
 // --- 7. BACKUP & RESTORE ---
+// --- FINAL CLEAN RESTORE FUNCTION ---
 async function importData(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -377,6 +378,33 @@ async function importData(event) {
 
             if (!confirm("⚠️ This will erase all data. Continue?")) return;
 
+            // 🔥 CLEANING FUNCTION (paste here)
+            const cleanData = (arr, table) => {
+                if (!Array.isArray(arr)) return [];
+
+                return arr.map(item => {
+                    if (!item || typeof item !== 'object') return null;
+
+                    const obj = { ...item };
+
+                    // remove id (important)
+                    delete obj.id;
+
+                    // convert values to number
+                    if (obj.weight) obj.weight = parseFloat(obj.weight) || 0;
+                    if (obj.amount) obj.amount = parseFloat(obj.amount) || 0;
+                    if (obj.total) obj.total = parseFloat(obj.total) || 0;
+
+                    // required field check
+                    if (table === 'settings' && !obj.fullName) return null;
+                    if (table === 'hulling' && !obj.name) return null;
+                    if (table === 'stock' && !obj.name) return null;
+
+                    return obj;
+                }).filter(Boolean);
+            };
+
+            // 🔥 MAIN RESTORE
             await db.transaction('rw', db.settings, db.hulling, db.stock, db.expenses, async () => {
 
                 await db.settings.clear();
@@ -384,33 +412,10 @@ async function importData(event) {
                 await db.stock.clear();
                 await db.expenses.clear();
 
-                // ✅ SAFE INSERT FUNCTION
-                const safeInsert = async (table, arr) => {
-                    if (!Array.isArray(arr)) return;
-
-                    for (let item of arr) {
-                        if (!item || typeof item !== 'object') continue;
-
-                        // Remove id for auto increment
-                        delete item.id;
-
-                        // ✅ Ensure required fields exist
-                        if (table === 'settings' && !item.fullName) continue;
-                        if (table === 'hulling' && !item.name) continue;
-                        if (table === 'stock' && !item.name) continue;
-
-                        try {
-                            await db[table].add(item);
-                        } catch (err) {
-                            console.warn("Skipped bad record:", item);
-                        }
-                    }
-                };
-
-                await safeInsert('settings', data.settings);
-                await safeInsert('hulling', data.hulling);
-                await safeInsert('stock', data.stock);
-                await safeInsert('expenses', data.expenses);
+                await db.settings.bulkAdd(cleanData(data.settings, 'settings'));
+                await db.hulling.bulkAdd(cleanData(data.hulling, 'hulling'));
+                await db.stock.bulkAdd(cleanData(data.stock, 'stock'));
+                await db.expenses.bulkAdd(cleanData(data.expenses, 'expenses'));
             });
 
             alert("✅ Restore Successful!");

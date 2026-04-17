@@ -1,3 +1,6 @@
+/**
+ * js/logic.js - Handles Weight Conversions & Formatting
+ */
 const Logic = {
     processWeight: function(val) {
         if (!val) return 0;
@@ -8,19 +11,16 @@ const Logic = {
             const q = parseInt(parts[0]) || 0;
             let kgString = parts[1] || "0";
             
-            // Critical: If user types .5, it means 50kg. If .05, it means 5kg.
+            // Handle .5 as 50kg, .05 as 5kg
             if (kgString.length === 1) kgString += "0"; 
             const kg = parseInt(kgString.substring(0, 2));
             
             return (q * 100) + kg;
         }
-        // No dot means pure KG
         return parseFloat(s);
     },
 
     formatDisplay: function(totalKg) {
-        // Fix for the -0 Q issue:
-        // We round to avoid floating point errors like -0.0000001
         const roundedKg = Math.round(totalKg); 
         if (roundedKg === 0) return "0 Q 00 kg";
 

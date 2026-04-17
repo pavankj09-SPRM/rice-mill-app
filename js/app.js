@@ -284,25 +284,34 @@ async function deleteVariety(id) {
 async function saveHulling() {
     await db.hulling.add({
         name: document.getElementById('h_name').value.trim(),
-        weight: document.getElementById('h_weight').value,
-        rate: document.getElementById('h_rate').value,
-        total: document.getElementById('h_total_input').value,
+        weight: parseFloat(document.getElementById('h_weight').value) || 0,
+        rate: parseFloat(document.getElementById('h_rate').value) || 0,
+        total: parseFloat(document.getElementById('h_total_input').value) || 0,
         status: document.getElementById('h_status').value,
         date: document.getElementById('main_date_picker').value
     });
+
     showToast("Hulling Saved!");
     window.refreshAll();
 }
 
 async function saveStock() {
     await db.stock.add({
+    name: document.getElementById('st_name').value.trim(),
+    action: document.getElementById('st_action').value,
+    type: document.getElementById('st_type').value,
+    weight: parseFloat(document.getElementById('st_weight').value) || 0,
+    amount: parseFloat(document.getElementById('st_amount').value) || 0,
+    date: document.getElementById('main_date_picker').value
+});
+    /*await db.stock.add({
         name: document.getElementById('st_name').value.trim(),
         action: document.getElementById('st_action').value,
         type: document.getElementById('st_type').value,
         weight: document.getElementById('st_weight').value,
         amount: document.getElementById('st_amount').value,
         date: document.getElementById('main_date_picker').value
-    });
+    });*/
     showToast("Stock Saved!");
     window.refreshAll();
 }
@@ -434,12 +443,28 @@ async function exportData() {
     const settings = await db.settings.toArray();
     const hulling = await db.hulling.toArray();
     const stock = await db.stock.toArray();
-    const blob = new Blob([JSON.stringify({settings, hulling, stock})], {type: "application/json"});
+    const expenses = await db.expenses.toArray(); // ✅ ADD THIS
+
+    const blob = new Blob([
+        JSON.stringify({ settings, hulling, stock, expenses })
+    ], { type: "application/json" });
+
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `Backup_Mill_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
 }
+/*
+async function exportData() {
+    const settings = await db.settings.toArray();
+    const hulling = await db.hulling.toArray();
+    const stock = await db.stock.toArray();
+    const blob = new Blob([JSON.stringify({settings, hulling, stock})], {type: "application/json"});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Backup_Mill_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+}*/
 
 async function generateSummary() {
     const all = await db.stock.toArray();

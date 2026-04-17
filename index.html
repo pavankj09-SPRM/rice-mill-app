@@ -1,25 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Parshwanatha Rice Mill - Enterprise</title>
+    
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>SHRI PARSHWANATHA RICE MILL</header>
+
+<div id="toast">Saved Successfully!</div>
+
+<div class="container">
+    
+    <div class="card date-header">
+        <label>📅 SELECTED DATE:</label>
+        <input type="date" id="main_date_picker">
+    </div>
+
+    <div id="hulling-tab" class="tab-content active">
+        <div class="card">
+            <h3>Hulling Entry</h3>
+            <input type="text" id="h_name" placeholder="Customer Name">
+            <input type="number" step="0.01" id="h_weight" placeholder="Paddy Weight (Ex: 1.50)">
+            <div class="grid-2">
+                <input type="number" id="h_rate" value="150" placeholder="Rate">
+                <select id="h_status">
+                    <option value="Paid">Paid</option>
+                    <option value="Pending">Pending</option>
+                </select>
+            </div>
+            <label><small>Total Amount (₹):</small></label>
+            <input type="number" id="h_total_input" readonly class="readonly-total">
+            <button id="btn_save_hulling">Save & Record</button>
+        </div>
+    </div>
+
+    <div id="stock-tab" class="tab-content">
+        <div class="card">
+            <h3>Inventory Movement</h3>
+            <select id="st_action">
+                <option value="Purchase">Purchase (Stock In)</option>
+                <option value="Sale">Sale (Stock Out)</option>
+                <option value="Processing">Processing Out (Paddy)</option>
+            </select>
+            <select id="st_type">
+                <option>Common Paddy</option>
+                <option>Common Rice</option>
+                <option>Husk Waste</option>
+                <option>Broken Rice</option>
+            </select>
+            <input type="text" id="st_name" placeholder="Party Name">
+            <div class="grid-2">
+                <input type="number" step="0.01" id="st_weight" placeholder="Weight (Q.kg)">
+                <input type="number" id="st_rate" placeholder="Rate per Q">
+            </div>
+            <input type="number" id="st_amount" placeholder="Total Amount (₹)">
+            <button id="btn_save_stock" class="bg-secondary">Save Stock Entry</button>
+        </div>
+    </div>
+
+    <div id="expenses-tab" class="tab-content">
+        <div class="card">
+            <h3>Bills & Payments</h3>
+            <div class="grid-2 mb-15">
+                <button id="btn_auto_labour" class="bg-edit" style="background:#673ab7; font-size: 13px;">Auto Labours</button>
+                <button id="btn_set_elec" class="bg-secondary" style="background:#ff9800; font-size: 13px;">⚡ Electricity</button>
+            </div>
+            <select id="exp_type_cat">
+                <option value="Wages">Labour Wages</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Fuel">Diesel/Fuel</option>
+                <option value="Other">Other Expenses</option>
+            </select>
+            <input type="text" id="exp_name" placeholder="Expense Details">
+            <input type="number" id="exp_amount" placeholder="Amount (₹)">
+            <button id="btn_save_expense" class="bg-danger" style="background:#f44336;">Save Payment</button>
+        </div>
+    </div>
+
+    <div id="history-tab" class="tab-content">
+        <div class="card">
+            <h3>Reports & Export</h3>
+            <div class="grid-2">
+                <button id="btn_export_excel" class="bg-success" style="background:#2e7d32;">📥 Excel</button>
+                <button id="btn_export_pdf" class="bg-danger" style="background:#c62828;">📄 Daily PDF</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>Daily Activity Log</h3>
+            <div id="day_log">
+                </div>
+        </div>
+
+        <div class="card">
+            <h3>Inventory Summary</h3>
+            <div class="grid-2 mb-15">
+                <button class="view-toggle active" data-view="month" style="padding:5px;">Month</button>
+                <button class="view-toggle" data-view="year" style="padding:5px;">Year</button>
+            </div>
+            <div id="summary_display">
+                </div>
+        </div>
+    </div>
+
+    <div id="dashboard-tab" class="tab-content">
+        <div class="dash-grid" id="dash_stats_container">
+            </div>
+        <div class="card chart-container">
+            <canvas id="financeChart"></canvas>
+        </div>
+    </div>
+
+    <div id="settings-tab" class="tab-content">
+        <div class="card">
+            <h3>Add Variety</h3>
+            <input type="text" id="new_item_val" placeholder="Variety Name (Ex: Sona Masuri)">
+            <select id="new_item_cat">
+                <option value="paddy">Paddy Variety</option>
+                <option value="rice">Rice Variety</option>
+                <option value="misc">Misc/Bags</option>
+            </select>
+            <button id="btn_add_variety">+ Add to List</button>
+        </div>
+
+        <div id="settings_grid"></div>
+
+        <div class="card text-center">
+            <h3>System Management</h3>
+            <button id="btn_backup" class="btn-sec" style="background:#455a64;">Backup (.json)</button>
+            
+            <input type="file" id="import_file" style="display:none;">
+            <button id="btn_restore_trigger" class="btn-sec bg-gray" style="background:#9e9e9e;">Restore File</button>
+            
+            <button id="btn_master_reset" style="background:#000; margin-top:20px; font-size: 11px;">Master Reset</button>
+        </div>
+    </div>
+
+</div>
+
 <div class="nav-bar">
-    <div class="nav-item" data-tab="hulling-tab">🌾 Hulling</div>
-    <div class="nav-item" data-tab="stock-tab">📦 Stock</div>
-    <div class="nav-item" data-tab="history-tab">🕒 History</div>
-    <div class="nav-item" data-tab="settings-tab">⚙️ Settings</div>
-</div>
-
-<div id="settings-tab" class="tab-content">
-    <div class="card">
-        <h3>🌾 Add Varieties</h3>
-        <input type="text" id="new_item_name" placeholder="Variety Name">
-        <select id="new_item_category">
-            <option value="Paddy">Paddy</option>
-            <option value="Rice">Rice</option>
-        </select>
-        <button onclick="addNewVariety()">+ Add Variety</button>
+    <div class="nav-item active" data-tab="hulling-tab">
+        <span class="icon">🌾</span><span>Hulling</span>
     </div>
-
-    <div class="card">
-        <h3>💾 Data Management</h3>
-        <button onclick="exportData()" style="background: #4CAF50;">Export Backup</button>
-        <button onclick="document.getElementById('importFile').click()" style="background: #2196F3;">Restore Backup</button>
-        <input type="file" id="importFile" style="display:none" onchange="importData(event)">
+    <div class="nav-item" data-tab="stock-tab">
+        <span class="icon">📦</span><span>Stock</span>
+    </div>
+    <div class="nav-item" data-tab="expenses-tab">
+        <span class="icon">💵</span><span>Bills</span>
+    </div>
+    <div class="nav-item" data-tab="history-tab">
+        <span class="icon">📜</span><span>History</span>
+    </div>
+    <div class="nav-item" data-tab="dashboard-tab">
+        <span class="icon">📊</span><span>Dash</span>
+    </div>
+    <div class="nav-item" data-tab="settings-tab">
+        <span class="icon">⚙️</span><span>Settings</span>
     </div>
 </div>
+
+<script src="js/db.js"></script>
+<script src="js/logic.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

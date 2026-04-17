@@ -32,7 +32,8 @@ const switchTab = (tabId) => {
     }
     if (nav) nav.classList.add('active');
 
-    if (tabId === 'history-tab' || tabId === 'stock-tab') refreshAll();
+    if (tabId === 'history-tab' || tabId === 'stock-tab' || tabId === 'expenses-tab') 
+        refreshAll();
 };
 
 // --- 3. INITIALIZATION ---
@@ -97,10 +98,13 @@ async function saveStock() {
 
     // Primary Entry
     await db.stock.add({
-        name: name || "Self", action, type, weight: weightVal, date
+        name: name || "Self", action: action, 
+        type: type, 
+        weight: weightVal, 
+        date: date
     });
 
-    // PADDY PROCESSING: If selling/using PADDY, create RICE and HUSK automatically
+  /*  // PADDY PROCESSING: If selling/using PADDY, create RICE and HUSK automatically
     if (action === "Sale" && type.toLowerCase().includes("paddy")) {
         const kg = Logic.processWeight(weightVal);
         await db.stock.bulkAdd([
@@ -108,10 +112,13 @@ async function saveStock() {
             { name: "System", action: "Purchase", type: "Husk Waste", weight: (kg * 0.25 / 100).toFixed(2), date }
         ]);
     }
-
+*/
     showToast("Stock Updated!");
+    document.getElementById('st_weight').value = "";
+    document.getElementById('st_name').value = "";
+    
     refreshAll();
-}
+
 
 // --- 5. UI DISPLAY ---
 

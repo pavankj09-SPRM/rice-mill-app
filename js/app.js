@@ -365,6 +365,42 @@ async function deleteEntry(id, table) {
 }
 
 // --- 7. BACKUP & RESTORE ---
+async function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            if (confirm("Restore this backup? This will merge/update your current records.")) {
+                // Use bulkPut to prevent "key path" errors
+                if (data.settings && data.settings.length > 0) {
+                    await db.settings.bulkPut(data.settings);
+                }
+                if (data.hulling && data.hulling.length > 0) {
+                    await db.hulling.bulkPut(data.hulling);
+                }
+                if (data.stock && data.stock.length > 0) {
+                    await db.stock.bulkPut(data.stock);
+                }
+                if (data.expenses && data.expenses.length > 0) {
+                    await db.expenses.bulkPut(data.expenses);
+                }
+
+                alert("Restore Successful!");
+                location.reload(); 
+            }
+        } catch (err) {
+            // This catches the specific error seen in your screenshot
+            alert("Error reading file: " + err.message);
+            console.error("Detailed Error:", err);
+        }
+    };
+    reader.readAsText(file);
+}
+/*
 function importData(event) {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -379,7 +415,7 @@ function importData(event) {
         } catch (err) { alert("Invalid File"); }
     };
     reader.readAsText(event.target.files[0]);
-}
+} */
 
 async function exportData() {
     const settings = await db.settings.toArray();

@@ -269,22 +269,47 @@ async function viewDayLog() {
     document.getElementById('day_log').innerHTML = html || "No entries for today.";
 }
 
+
 async function generateSummary() {
     const dStr = document.getElementById('main_date_picker').value;
     const filter = currentSummaryView === 'month' ? dStr.substring(0, 7) : dStr.substring(0, 4);
+    
     const allStock = await db.stock.toArray();
     const filtered = allStock.filter(x => x.date.startsWith(filter));
     
     const inventory = {};
+
     filtered.forEach(i => { 
-        if(!inventory[i.type]) inventory[i.type] = 0; 
-        const w = Logic.processWeight(i.weight, i.type);
-        inventory[i.type] += (i.action === 'Purchase' ? w : -w);
+        if (!inventory[i.type]) inventory[i.type] = 0; 
+        
+        // Ensure weight is converted to a consistent number (grams or kg)
+        const weightValue = Logic.processWeight(i.weight, i.type);
+        
+        // LOGIC FIX: Check action string carefully
+        if (i.action === 'Purchase' || i.action === 'Inward') {
+            inventory[i.type] += weightValue;
+        } else {
+            inventory[i.type] -= weightValue;
+        }
     });
     
     let html = `<table class="summary-table"><thead><tr><th>Variety</th><th>Net Stock</th></tr></thead><tbody>`;
-    for(let k in inventory) {
-        html += `<tr><td><b>${k}</b></td><td>${Logic.formatDisplay(inventory[k])}</td></tr>`;
+    
+    const keys = Object.keys(inventory);
+    if (keys.length === 0) {
+        html += `<tr><td colspan="2" style="text-align:center;">No data found</td></tr>`;
+    } else {
+        keys.forEach(k => {
+            // Use Logic.formatDisplay to turn the number back into "0 Q 00 kg"
+            const netWeight = inventory[k];
+            const displayValue = Logic.formatDisplay(netWeight);
+            const statusColor = netWeight < 0 ? "#c62828" : "#2e7d32";
+            
+            html += `<tr>
+                <td><b>${k}</b></td>
+                <td style="color: ${statusColor}; font-weight: bold;">${displayValue}</td>
+            </tr>`;
+        });
     }
     document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
 }
@@ -453,13 +478,40 @@ async function printSingleBill(id) {
     doc.save(`Bill_${entry.name}_${entry.date}.pdf`);
 }
 
+
+async function editHulling(id) {
+    const entry = await db.hulling.get(id);
+    if (!entry) return;
+
+    // --- TAB SWITCH FIX ---
+    // 1. Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    // 2. Remove active class from all nav items
+    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+    
+    // 3. Show the Hulling tab specifically
+    const hullingTab = document.getElementById('hulling');
+    if (hullingTab) hullingTab.classList.add('active');
+    
+    // 4. Highlight the Hulling button in the menu
+    // (This searches for the nav item that says 'Hulling' if data-tab is missing)
+    const navItems = Array.from(document.querySelectorAll('.nav-item'));
+    const targetNav = navItems.find(el => el.textContent.includes('Hulling') || el.getAttribute('data-tab') === 'hulling');
+    if (targetNav) targetNav.classList.add('active');
+
+    // --- REMAINING EDIT LOGIC ---
+    document.getElementById('h_name').value = entry.name;
+    document.getElementById('h_weight').value = entry.weight;
+    // ... rest of your code ...
+}
+
 // --- EDIT FUNCTION ---
 
 /**
  * Function to load data back into the form for editing
  */
 // --- UPDATED EDIT FUNCTION ---
-async function editHulling(id) {
+/* async function editHulling(id) {
     const entry = await db.hulling.get(id);
     if (!entry) return;
 
@@ -515,4 +567,4 @@ async function editHulling(id) {
         // Optional: Switch back to History tab after saving
         document.querySelector('[data-tab="history"]').click();
     };
-}
+} */

@@ -273,8 +273,8 @@ async function generateSummary() {
     const dStr = document.getElementById('main_date_picker').value;
     const filter = currentSummaryView === 'month' ? dStr.substring(0, 7) : dStr.substring(0, 4);
     
+    // Only pull from the stock table for inventory
     const allStock = await db.stock.toArray();
-    // Filter by date
     const filtered = allStock.filter(x => x.date.startsWith(filter));
     
     const inventory = {};
@@ -282,28 +282,28 @@ async function generateSummary() {
     filtered.forEach(item => {
         if (!inventory[item.type]) inventory[item.type] = 0;
         
-        // Convert the weight string (e.g., "1.14") to a number (114)
         const weightInKg = Logic.processWeight(item.weight);
-        
-        // Identify if we are adding to stock or removing
         const action = item.action.toLowerCase();
-        if (action === 'purchase' || action === 'inward' || action === 'stock in') {
+
+        // Strict Action Checking
+        if (action === 'purchase' || action === 'inward') {
             inventory[item.type] += weightInKg;
-        } else if (action === 'sale' || action === 'outward' || action === 'stock out') {
+        } else if (action === 'sale' || action === 'outward') {
             inventory[item.type] -= weightInKg;
         }
     });
 
     let html = `<table class="summary-table">
-                <thead><tr><th>Variety</th><th>Available Stock</th></tr></thead>
+                <thead><tr><th>Variety</th><th>Net Stock</th></tr></thead>
                 <tbody>`;
 
     const keys = Object.keys(inventory);
     if (keys.length === 0) {
-        html += `<tr><td colspan="2" style="text-align:center;">No stock movements found.</td></tr>`;
+        html += `<tr><td colspan="2" style="text-align:center;">No movements recorded</td></tr>`;
     } else {
         keys.forEach(key => {
             const netWeight = inventory[key];
+            // Only show negative color if truly below zero
             const color = netWeight < 0 ? "#d32f2f" : "#2e7d32";
             html += `<tr>
                 <td><b>${key}</b></td>
@@ -311,9 +311,9 @@ async function generateSummary() {
             </tr>`;
         });
     }
-    
     document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
 }
+
 
 
 // 7. UTILITIES (Backup, Toast, Delete)

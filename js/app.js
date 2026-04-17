@@ -9,18 +9,38 @@ const refreshAll = async () => {
 };
 
 const switchTab = (tabName) => {
-    // Hide all
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    console.log("Switching to:", tabName);
+
+    // 1. Hide ALL content sections
+    const allTabs = document.querySelectorAll('.tab-content');
+    allTabs.forEach(tab => {
+        tab.classList.remove('active');
+        tab.style.display = "none"; // Force hide
+    });
+
+    // 2. Deactivate ALL nav buttons
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
-    // Show selected (Matches your "hulling-tab" structure)
-    const target = document.getElementById(tabName + "-tab");
-    const nav = document.querySelector(`[data-tab="${tabName}"]`);
-    
-    if (target) target.classList.add('active');
-    if (nav) nav.classList.add('active');
+    // 3. Find the NEW tab (Example: "inventory" + "-tab")
+    const targetId = tabName + "-tab";
+    const targetContent = document.getElementById(targetId);
+    const navBtn = document.querySelector(`[data-tab="${tabName}"]`);
 
-    if (tabName === 'history' || tabName === 'summary') refreshAll();
+    if (targetContent) {
+        console.log("Found tab:", targetId);
+        targetContent.classList.add('active');
+        targetContent.style.display = "block"; // Force show
+    } else {
+        console.error("CRITICAL ERROR: Could not find HTML element with ID:", targetId);
+        alert("Developer Error: Tab '" + targetId + "' is missing in index.html");
+    }
+
+    if (navBtn) navBtn.classList.add('active');
+
+    // 4. Load data if needed
+    if (tabName === 'history' || tabName === 'summary' || tabName === 'inventory') {
+        refreshAll();
+    }
 };
 
 // 2. INITIALIZATION

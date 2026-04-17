@@ -1,262 +1,53 @@
 /**
- * js/app.js - The Brain of Parshwanatha Rice Mill
+ * js/app.js - Full Integrated Logic
  */
 
-let myChart = null;
-let currentSummaryView = 'month';
-
-// 1. INITIALIZATION
-window.onload = () => {
-    const datePicker = document.getElementById('main_date_picker');
-    if (datePicker) {
-        datePicker.valueAsDate = new Date();
-    }
-    attachListeners();
-    refreshAll();
-};
-
-// 2. EVENT LISTENERS
-function attachListeners() {
-    // Navigation Tabs
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            const targetTab = e.target.getAttribute('data-tab');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            document.getElementById(targetTab).classList.add('active');
-            e.target.classList.add('active');
-        });
-    });
-
-    // Date Changes
-    document.getElementById('main_date_picker').addEventListener('change', refreshAll);
-
-    // Save Buttons
-    document.getElementById('btn_save_hulling').onclick = saveHulling;
-    document.getElementById('btn_save_stock').onclick = saveStock;
-    document.getElementById('btn_save_expense').onclick = saveExpense;
-    document.getElementById('btn_add_variety').onclick = addVariety;
-
-    // Utility Helpers
-    document.getElementById('btn_auto_labour').onclick = autoLabour;
-    document.getElementById('btn_set_elec').onclick = () => {
-        document.getElementById('exp_name').value = "Electricity Bill";
-    };
-
-    // History View Toggles
-    document.querySelectorAll('.view-toggle').forEach(btn => {
-        btn.onclick = (e) => {
-            currentSummaryView = e.target.getAttribute('data-view');
-            document.querySelectorAll('.view-toggle').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            generateSummary();
-        };
-    });
-
-    // Restore Button Fix
-    const restoreBtn = document.getElementById('btn_restore_trigger');
-    const fileInput = document.getElementById('import_file');
-    if (restoreBtn && fileInput) {
-        restoreBtn.onclick = () => {
-            fileInput.value = null;
-            fileInput.click();
-        };
-        fileInput.onchange = importJSON;
-    }
-
-    // Export Buttons
-    document.getElementById('btn_backup').onclick = exportJSON;
-    document.getElementById('btn_export_excel').onclick = exportToExcel;
-    document.getElementById('btn_export_pdf').onclick = exportToPDF;
-
-    // Hulling Weight Auto-Calc
-    document.getElementById('h_weight').oninput = calculateHullingTotal;
-    document.getElementById('h_rate').oninput = calculateHullingTotal;
-    
-    // Stock Logic Update
-    document.getElementById('st_action').onchange = () => {
-        db.settings.toArray().then(items => updateStockDropdown(items));
-    };
-}
-
-// 3. CORE ACTION FUNCTIONS
-
-async function refreshAll() {
-    await updateSettingsGrid();
-    await viewDayLog();
-    await refreshDashboard();
-    await generateSummary();
-}
-
-function calculateHullingTotal() {
-    const weightVal = document.getElementById('h_weight').value;
-    const rate = document.getElementById('h_rate').value;
-    const kg = Logic.processWeight(weightVal, 'paddy');
-    document.getElementById('h_total_input').value = Math.round((kg / 100) * rate);
-}
-
-async function saveHulling() {
-    const name = document.getElementById('h_name').value.trim();
-    const weight = document.getElementById('h_weight').value;
-    const date = document.getElementById('main_date_picker').value;
-
-    if (!name || !weight) return alert("Enter Customer Name and Weight");
-
-    await db.hulling.add({
-        name,
-        weight,
-        total: document.getElementById('h_total_input').value,
-        status: document.getElementById('h_status').value,
-        date: date
-    });
-
-    document.getElementById('h_name').value = "";
-    document.getElementById('h_weight').value = "";
-    showToast("Hulling Saved Successfully!");
-    refreshAll();
-}
+// --- 1. CORE FUNCTIONS ---
 
 async function saveStock() {
     const name = document.getElementById('st_name').value.trim();
-    const weight = document.getElementById('st_weight').value;
+    const weightVal = document.getElementById('st_weight').value;
     const type = document.getElementById('st_type').value;
+    const action = document.getElementById('st_action').value;
     const date = document.getElementById('main_date_picker').value;
 
-    if (!name || !weight) return alert("Enter Party Name and Weight");
+    if (!weightVal) return alert("Enter Weight");
 
+    // Save Primary Action
     await db.stock.add({
-        name,
-        action: document.getElementById('st_action').value,
+        name: name || "Internal Process",
+        action: action,
         type: type,
-        weight: weight,
+        weight: weightVal,
         amount: parseFloat(document.getElementById('st_amount').value) || 0,
         date: date
     });
 
-    document.getElementById('st_name').value = "";
-    document.getElementById('st_weight').value = "";
-    showToast("Stock Updated!");
-    refreshAll();
-}
+    // SELF-HULLING LOGIC: If selling/processing PADDY, create RICE & HUSK
+    if (action === "Sale" && type.toLowerCase().includes("paddy")) {
+        const kg = Logic.processWeight(weightVal);
+        const riceWeight = (kg * 0.65) / 100;
+        const huskWeight = (kg * 0.25) / 100;
 
-async function saveExpense() {
-    const name = document.getElementById('exp_name').value.trim();
-    const amt = document.getElementById('exp_amount').value;
-    const date = document.getElementById('main_date_picker').value;
-
-    if (!name || !amt) return alert("Enter Expense Details and Amount");
-
-    await db.expenses.add({
-        name,
-        type: document.getElementById('exp_type_cat').value,
-        amount: parseFloat(amt) || 0,
-        date: date
-    });
-
-    document.getElementById('exp_name').value = "";
-    document.getElementById('exp_amount').value = "";
-    showToast("Expense Recorded");
-    refreshAll();
-}
-
-// 4. SETTINGS & LOGS
-
-async function addVariety() {
-    const val = document.getElementById('new_item_val').value.trim();
-    const cat = document.getElementById('new_item_cat').value;
-    if (!val) return;
-
-    await db.settings.add({ fullName: val, category: cat });
-    document.getElementById('new_item_val').value = "";
-    refreshAll();
-}
-
-async function updateSettingsGrid() {
-    const items = await db.settings.toArray();
-    const grid = document.getElementById('settings_grid');
-    let html = "";
-
-    ['paddy', 'rice', 'misc'].forEach(cat => {
-        html += `<div class="card"><h3>${cat.toUpperCase()} List</h3>`;
-        items.filter(i => i.category === cat).forEach(i => {
-            html += `<div class="item-row">
-                <span>${i.fullName}</span>
-                <button class="btn-sm" style="background:#fee2e2; color:red;" onclick="deleteEntry('settings', ${i.id})">Delete</button>
-            </div>`;
-        });
-        html += `</div>`;
-    });
-    grid.innerHTML = html;
-    updateStockDropdown(items);
-}
-
-function updateStockDropdown(items) {
-    const act = document.getElementById('st_action').value;
-    let html = "";
-    if (act === 'Purchase') {
-        items.filter(i => i.category === 'paddy').forEach(p => html += `<option value="${p.fullName}">${p.fullName}</option>`);
-    } else {
-        items.filter(i => i.category !== 'paddy').forEach(r => html += `<option value="${r.fullName}">${r.fullName}</option>`);
+        await db.stock.bulkAdd([
+            { name: "System", action: "Purchase", type: "Common Rice", weight: riceWeight.toFixed(2), date: date },
+            { name: "System", action: "Purchase", type: "Husk Waste", weight: huskWeight.toFixed(2), date: date }
+        ]);
+        showToast("Stock Updated: Paddy converted to Rice/Husk");
     }
-    document.getElementById('st_type').innerHTML = html + `<option value="Husk Load">Husk Load</option>`;
+
+    document.getElementById('st_weight').value = "";
+    refreshAll();
 }
-
-// 5. DASHBOARD & SUMMARY
-
-async function refreshDashboard() {
-    const d = document.getElementById('main_date_picker').value;
-    const [h, s, e] = await Promise.all([
-        db.hulling.where('date').equals(d).toArray(),
-        db.stock.where('date').equals(d).toArray(),
-        db.expenses.where('date').equals(d).toArray()
-    ]);
-
-    const tKg = h.reduce((acc, curr) => acc + Logic.processWeight(curr.weight, 'paddy'), 0);
-    const inc = h.filter(x => x.status === 'Paid').reduce((a, b) => a + parseFloat(b.total || 0), 0) +
-                s.filter(x => x.action === 'Sale').reduce((a, b) => a + (b.amount || 0), 0);
-    const exp = s.filter(x => x.action === 'Purchase').reduce((a, b) => a + (b.amount || 0), 0) +
-                e.reduce((a, b) => a + (b.amount || 0), 0);
-
-    document.getElementById('dash_stats_container').innerHTML = `
-        <div class="stat-box stat-hulling"><span>Daily Hulling</span><span class="stat-val">${Logic.formatDisplay(tKg)}</span></div>
-        <div class="stat-box stat-income"><span>Income</span><span class="stat-val">₹${inc}</span></div>
-        <div class="stat-box stat-expense"><span>Expense</span><span class="stat-val">₹${exp}</span></div>
-    `;
-
-    renderChart(inc, exp);
-}
-
-function renderChart(inc, exp) {
-    const ctx = document.getElementById('financeChart').getContext('2d');
-    if (myChart) myChart.destroy();
-    myChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Income', 'Expense'],
-            datasets: [{ data: [inc, exp], backgroundColor: ['#2e7d32', '#c62828'] }]
-        },
-        options: { maintainAspectRatio: false }
-    });
-}
-
-// 6. HISTORY LOGS & SUMMARY
 
 async function viewDayLog() {
     const d = document.getElementById('main_date_picker').value;
-    const [h, s, e] = await Promise.all([
-        db.hulling.where('date').equals(d).toArray(),
-        db.stock.where('date').equals(d).toArray(),
-        db.expenses.where('date').equals(d).toArray()
-    ]);
+    const h = await db.hulling.where('date').equals(d).toArray();
     
     let html = "";
-   // Update this part inside viewDayLog()
     h.forEach(x => {
         html += `<div class="log-card" style="border-left-color: #ff9800">
-            <div>
-                <b>${x.name}</b><br>
-                <small>${Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy'))}</small>
-            </div>
+            <div><b>${x.name}</b><br><small>${Logic.formatDisplay(Logic.processWeight(x.weight))}</small></div>
             <div class="log-actions">
                 <button class="btn-sm" style="background:#ff9800" onclick="editHulling(${x.id})">✏️</button>
                 <button class="btn-sm" style="background:#2e7d32" onclick="printSingleBill(${x.id})">📄 Bill</button>
@@ -264,309 +55,98 @@ async function viewDayLog() {
             </div>
         </div>`;
     });
-    
-    // Add similar loops for 's' (stock) and 'e' (expenses) if needed
-    document.getElementById('day_log').innerHTML = html || "No entries for today.";
+    document.getElementById('day_log').innerHTML = html || "No entries today.";
 }
 
-async function generateSummary() {
-    const dStr = document.getElementById('main_date_picker').value;
-    const filter = currentSummaryView === 'month' ? dStr.substring(0, 7) : dStr.substring(0, 4);
-    
-    // Only pull from the stock table for inventory
-    const allStock = await db.stock.toArray();
-    const filtered = allStock.filter(x => x.date.startsWith(filter));
-    
-    const inventory = {};
-
-    filtered.forEach(item => {
-        if (!inventory[item.type]) inventory[item.type] = 0;
-        
-        const weightInKg = Logic.processWeight(item.weight);
-        const action = item.action.toLowerCase();
-
-        // Strict Action Checking
-        if (action === 'purchase' || action === 'inward') {
-            inventory[item.type] += weightInKg;
-        } else if (action === 'sale' || action === 'outward') {
-            inventory[item.type] -= weightInKg;
-        }
-    });
-
-    let html = `<table class="summary-table">
-                <thead><tr><th>Variety</th><th>Net Stock</th></tr></thead>
-                <tbody>`;
-
-    const keys = Object.keys(inventory);
-    if (keys.length === 0) {
-        html += `<tr><td colspan="2" style="text-align:center;">No movements recorded</td></tr>`;
-    } else {
-        keys.forEach(key => {
-            const netWeight = inventory[key];
-            // Only show negative color if truly below zero
-            const color = netWeight < 0 ? "#d32f2f" : "#2e7d32";
-            html += `<tr>
-                <td><b>${key}</b></td>
-                <td style="color: ${color}; font-weight: bold;">${Logic.formatDisplay(netWeight)}</td>
-            </tr>`;
-        });
-    }
-    document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
-}
-
-
-
-// 7. UTILITIES (Backup, Toast, Delete)
-
-function showToast(m) {
-    const x = document.getElementById("toast");
-    x.innerText = m;
-    x.className = "show";
-    setTimeout(() => x.className = "", 2500);
-}
-
-async function deleteEntry(table, id) {
-    if (confirm("Delete this record?")) {
-        await db[table].delete(id);
-        refreshAll();
-    }
-}
-
-async function exportJSON() {
-    const data = {
-        settings: await db.settings.toArray(),
-        hulling: await db.hulling.toArray(),
-        stock: await db.stock.toArray(),
-        expenses: await db.expenses.toArray()
-    };
-    const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `Mill_Backup_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-}
-
-async function importJSON(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            await db.transaction('rw', [db.settings, db.hulling, db.stock, db.expenses], async () => {
-                await Promise.all([db.settings.clear(), db.hulling.clear(), db.stock.clear(), db.expenses.clear()]);
-                if (data.settings) await db.settings.bulkAdd(data.settings);
-                if (data.hulling) await db.hulling.bulkAdd(data.hulling);
-                if (data.stock) await db.stock.bulkAdd(data.stock);
-                if (data.expenses) await db.expenses.bulkAdd(data.expenses);
-            });
-            alert("Restore Complete!");
-            location.reload();
-        } catch (err) { alert("Invalid File Format"); }
-    };
-    reader.readAsText(file);
-}
-
-async function autoLabour() {
-    const d = document.getElementById('main_date_picker').value;
-    const h = await db.hulling.where('date').equals(d).toArray();
-    const tKg = h.reduce((s, i) => s + Logic.processWeight(i.weight, 'paddy'), 0);
-    document.getElementById('exp_name').value = `Labour (${Logic.formatDisplay(tKg)})`;
-    document.getElementById('exp_amount').value = Math.round(tKg * 0.23);
-}
-
-// 8. EXPORTS
-
-async function exportToExcel() {
-    const h = await db.hulling.toArray(), s = await db.stock.toArray(), e = await db.expenses.toArray();
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(h), "Hulling");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(s), "Stock");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(e), "Expenses");
-    XLSX.writeFile(wb, `Mill_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
-}
-
-async function exportToPDF() {
-    const { jsPDF } = window.jspdf; const doc = new jsPDF();
-    const d = document.getElementById('main_date_picker').value;
-    doc.text(`Daily Report: ${d}`, 14, 20);
-    const h = await db.hulling.where('date').equals(d).toArray();
-    const body = h.map(x => [x.name, Logic.formatDisplay(Logic.processWeight(x.weight, 'paddy')), x.total, x.status]);
-    doc.autoTable({ head: [['Customer', 'Weight', 'Amount', 'Status']], body: body, startY: 30 });
-    doc.save(`Report_${d}.pdf`);
-}
-
-async function printSingleBill(id) {
-    const entry = await db.hulling.get(id);
-    if (!entry) return;
-
-    const { jsPDF } = window.jspdf;
-    
-    // Create a 80mm width receipt (Standard Thermal size)
-    const doc = new jsPDF({
-        unit: 'mm',
-        format: [80, 160] 
-    });
-
-    // --- 1. THE BORDER ---
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.rect(2, 2, 76, 156); // Outer frame
-
-    // --- 2. THE HEADER ---
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("SHRI PARSHWANATHA RICE MILL", 40, 12, { align: "center" });
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text("Sullalli, Sagar Taluk, Shimoga Dist.", 40, 17, { align: "center" });
-    doc.text("Ph No: +91 9482364402, +91 8861080602", 40, 21, { align: "center" });
-    
-    // Separator line
-    doc.setLineWidth(0.2);
-    doc.line(5, 25, 75, 25);
-
-    // --- 3. CUSTOMER DETAILS ---
-    doc.setFont("helvetica", "bold");
-    doc.text("INVOICE / RECEIPT", 40, 32, { align: "center" });
-    
-    doc.setFont("helvetica", "normal");
-    doc.text(`Bill Date : ${entry.date}`, 8, 40);
-    doc.text(`Customer : ${entry.name}`, 8, 45);
-    doc.text(`Status   : ${entry.status}`, 8, 50);
-
-    // --- 4. DATA TABLE ---
-    doc.autoTable({
-        startY: 55,
-        margin: { left: 5, right: 5 },
-        head: [['Service Description', 'Qty', 'Total']],
-        body: [
-            ['Paddy Hulling Service', 
-             Logic.formatDisplay(Logic.processWeight(entry.weight, 'paddy')), 
-             `Rs. ${entry.total}`]
-        ],
-        theme: 'grid', // Grid theme provides clean table lines
-        styles: { 
-            fontSize: 8, 
-            cellPadding: 3,
-            halign: 'center'
-        },
-        headStyles: { 
-            fillColor: [40, 40, 40], // Dark header
-            textColor: [255, 255, 255], 
-            fontStyle: 'bold' 
-        },
-        columnStyles: {
-            0: { halign: 'left', cellWidth: 35 },
-            1: { halign: 'center' },
-            2: { halign: 'right' }
-        }
-    });
-
-    // --- 5. FOOTER & TOTAL ---
-    const finalY = doc.lastAutoTable.finalY;
-    
-    doc.setFont("helvetica", "bold");
-    doc.text(`GRAND TOTAL: Rs. ${entry.total}`, 75, finalY + 10, { align: "right" });
-
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(7);
-    doc.text("This is a computer-generated receipt.", 40, finalY + 25, { align: "center" });
-    doc.setFont("helvetica", "bold");
-    doc.text("THANK YOU FOR YOUR BUSINESS!", 40, finalY + 30, { align: "center" });
-
-    // Save PDF
-    doc.save(`Bill_${entry.name}_${entry.date}.pdf`);
-}
-
+// --- 2. EDIT & TAB SWITCHING ---
 
 async function editHulling(id) {
     const entry = await db.hulling.get(id);
     if (!entry) return;
 
-    // --- TAB SWITCH FIX ---
-    // 1. Hide all tab contents
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    // 2. Remove active class from all nav items
-    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-    
-    // 3. Show the Hulling tab specifically
-    const hullingTab = document.getElementById('hulling');
-    if (hullingTab) hullingTab.classList.add('active');
-    
-    // 4. Highlight the Hulling button in the menu
-    // (This searches for the nav item that says 'Hulling' if data-tab is missing)
-    const navItems = Array.from(document.querySelectorAll('.nav-item'));
-    const targetNav = navItems.find(el => el.textContent.includes('Hulling') || el.getAttribute('data-tab') === 'hulling');
-    if (targetNav) targetNav.classList.add('active');
+    // Force Tab Switch
+    document.querySelectorAll('.tab-content, .nav-item').forEach(el => el.classList.remove('active'));
+    document.getElementById('hulling').classList.add('active');
+    const navBtn = document.querySelector('[data-tab="hulling"]');
+    if (navBtn) navBtn.classList.add('active');
 
-    // --- REMAINING EDIT LOGIC ---
-    document.getElementById('h_name').value = entry.name;
-    document.getElementById('h_weight').value = entry.weight;
-    // ... rest of your code ...
-}
-
-// --- EDIT FUNCTION ---
-
-/**
- * Function to load data back into the form for editing
- */
-// --- UPDATED EDIT FUNCTION ---
-/* async function editHulling(id) {
-    const entry = await db.hulling.get(id);
-    if (!entry) return;
-
-    // --- 1. REDIRECT TO HULLING TAB ---
-    // This finds the Hulling tab button and clicks it for you
-    const hullingTabBtn = document.querySelector('[data-tab="hulling"]');
-    if (hullingTabBtn) {
-        hullingTabBtn.click(); 
-    }
-
-    // --- 2. FILL THE FORM ---
+    // Fill Form
     document.getElementById('h_name').value = entry.name;
     document.getElementById('h_weight').value = entry.weight;
     document.getElementById('h_status').value = entry.status;
-    document.getElementById('main_date_picker').value = entry.date;
     document.getElementById('h_rate').value = entry.rate || 150;
-
-    // --- 3. UI FEEDBACK ---
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    
+
     const saveBtn = document.getElementById('btn_save_hulling');
     saveBtn.innerText = "UPDATE RECORD";
-    saveBtn.style.backgroundColor = "#ff9800"; 
+    saveBtn.style.background = "#ff9800";
 
-    // --- 4. UPDATE LOGIC ---
-    saveBtn.onclick = async function() {
-        const newWeight = document.getElementById('h_weight').value;
-        const newRate = document.getElementById('h_rate').value;
-        const kg = Logic.processWeight(newWeight, 'paddy');
-        const newTotal = Math.round((kg / 100) * newRate);
-
+    saveBtn.onclick = async () => {
+        const kg = Logic.processWeight(document.getElementById('h_weight').value);
+        const rate = document.getElementById('h_rate').value;
         await db.hulling.update(id, {
             name: document.getElementById('h_name').value,
-            weight: newWeight,
-            total: newTotal,
-            status: document.getElementById('h_status').value,
-            date: document.getElementById('main_date_picker').value,
-            rate: newRate
+            weight: document.getElementById('h_weight').value,
+            total: Math.round((kg/100)*rate),
+            status: document.getElementById('h_status').value
         });
-
-        // Reset UI to normal state
         saveBtn.innerText = "Save & Record";
-        saveBtn.style.backgroundColor = ""; 
+        saveBtn.style.background = "";
         saveBtn.onclick = saveHulling;
-
-        // Clear inputs
-        document.getElementById('h_name').value = "";
-        document.getElementById('h_weight').value = "";
-        
-        showToast("Record Updated!");
         refreshAll();
-        
-        // Optional: Switch back to History tab after saving
         document.querySelector('[data-tab="history"]').click();
     };
-} */
+}
+
+// --- 3. INVENTORY SUMMARY (With Empty Bags Fix) ---
+
+async function generateSummary() {
+    const dStr = document.getElementById('main_date_picker').value;
+    const filter = currentSummaryView === 'month' ? dStr.substring(0, 7) : dStr.substring(0, 4);
+    const allStock = await db.stock.toArray();
+    const filtered = allStock.filter(x => x.date.startsWith(filter));
+    
+    const inventory = {};
+    filtered.forEach(item => {
+        if (!inventory[item.type]) inventory[item.type] = 0;
+        const w = Logic.processWeight(item.weight);
+        const action = item.action.toLowerCase();
+        inventory[item.type] += (action === 'purchase' || action === 'inward') ? w : -w;
+    });
+
+    let html = `<table class="summary-table"><thead><tr><th>Variety</th><th>Net Stock</th></tr></thead><tbody>`;
+    Object.keys(inventory).forEach(key => {
+        const val = inventory[key];
+        const display = key.toLowerCase().includes("bag") ? `${val} Pcs` : Logic.formatDisplay(val);
+        html += `<tr><td><b>${key}</b></td><td style="color:${val < 0 ? 'red':'green'}">${display}</td></tr>`;
+    });
+    document.getElementById('summary_display').innerHTML = html + "</tbody></table>";
+}
+
+// --- 4. PROFESSIONAL BILL PDF ---
+
+async function printSingleBill(id) {
+    const entry = await db.hulling.get(id);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: [80, 160] });
+
+    doc.rect(2, 2, 76, 156); // Border
+    doc.setFont("helvetica", "bold").setFontSize(11);
+    doc.text("SHRI PARSHWANATHA RICE MILL", 40, 12, { align: "center" });
+    doc.setFontSize(8).setFont("helvetica", "normal");
+    doc.text("Prop: Jwalaprasad K J | Sullalli, Sagar", 40, 18, { align: "center" });
+    doc.line(5, 22, 75, 22);
+
+    doc.text(`Date: ${entry.date}`, 8, 30);
+    doc.text(`Customer: ${entry.name}`, 8, 35);
+    
+    doc.autoTable({
+        startY: 40,
+        head: [['Description', 'Qty', 'Total']],
+        body: [['Paddy Hulling', Logic.formatDisplay(Logic.processWeight(entry.weight)), `Rs.${entry.total}`]],
+        theme: 'grid', styles: { fontSize: 8 }
+    });
+
+    doc.text("THANK YOU!", 40, doc.lastAutoTable.finalY + 15, { align: "center" });
+    doc.save(`Bill_${entry.name}.pdf`);
+}

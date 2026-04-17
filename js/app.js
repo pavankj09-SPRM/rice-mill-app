@@ -374,14 +374,14 @@ async function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
             
-            if (confirm("Restore this backup? This will replace your current records with the ones from the file.")) {
-                // Clear existing data to prevent ID conflicts
+            if (confirm("Restore this backup? All current data will be replaced.")) {
+                // 1. Clear current tables to prevent key conflicts
                 await db.settings.clear();
                 await db.hulling.clear();
                 await db.stock.clear();
                 await db.expenses.clear();
 
-                // Use bulkPut to import records that already have IDs
+                // 2. Use bulkPut to import data that already has IDs
                 if (data.settings) await db.settings.bulkPut(data.settings);
                 if (data.hulling) await db.hulling.bulkPut(data.hulling);
                 if (data.stock) await db.stock.bulkPut(data.stock);
@@ -391,9 +391,8 @@ async function importData(event) {
                 location.reload(); 
             }
         } catch (err) {
-            // This catches the specific IDBObjectStore error shown in your screenshot
-            alert("Error reading file: " + err.message);
-            console.error("Import Error Details:", err);
+            alert("Restore Failed: " + err.message);
+            console.error("Import Error:", err);
         }
     };
     reader.readAsText(file);

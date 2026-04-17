@@ -33,7 +33,7 @@ const switchTab = (tabId) => {
         target.classList.add('active');
         target.style.display = "block";
     } else {
-        console.error("Could not find a <div> with id:", tabId);
+        console.error("CRITICAL: Could not find a <div> with id:", tabId);
     }
 
     if (nav) nav.classList.add('active');
@@ -110,7 +110,7 @@ async function saveStock() {
 
     if (!weightVal) return alert("Enter weight");
 
-    // Manual Entry only - No auto-calculation
+    // Manual Entry only - No auto-calculation as requested
     await db.stock.add({
         name: name || "Self", 
         action: action, 

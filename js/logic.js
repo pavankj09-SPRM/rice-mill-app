@@ -1,35 +1,31 @@
 const Logic = {
-    /**
-     * Converts the user input into a pure KG number.
-     * Example: "1.14" -> 114
-     * Example: "14" -> 14
-     */
     processWeight: function(val) {
         if (!val) return 0;
-        const s = val.toString();
+        const s = val.toString().trim();
         
         if (s.includes('.')) {
             const parts = s.split('.');
             const q = parseInt(parts[0]) || 0;
-            let kg = parseInt(parts[1]) || 0;
+            let kgString = parts[1] || "0";
             
-            // Handle cases like .5 (should be 50kg) vs .05 (should be 5kg)
-            if (parts[1].length === 1) kg = kg * 10; 
+            // Critical: If user types .5, it means 50kg. If .05, it means 5kg.
+            if (kgString.length === 1) kgString += "0"; 
+            const kg = parseInt(kgString.substring(0, 2));
             
             return (q * 100) + kg;
         }
-        
-        // If no dot, treat the whole number as KG
+        // No dot means pure KG
         return parseFloat(s);
     },
 
-    /**
-     * Formats pure KG back into a readable string.
-     * Example: 114 -> "1 Q 14 kg"
-     */
     formatDisplay: function(totalKg) {
-        const isNegative = totalKg < 0;
-        const absKg = Math.round(Math.abs(totalKg));
+        // Fix for the -0 Q issue:
+        // We round to avoid floating point errors like -0.0000001
+        const roundedKg = Math.round(totalKg); 
+        if (roundedKg === 0) return "0 Q 00 kg";
+
+        const isNegative = roundedKg < 0;
+        const absKg = Math.abs(roundedKg);
         
         const q = Math.floor(absKg / 100);
         const kg = absKg % 100;

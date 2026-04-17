@@ -12,22 +12,18 @@ window.onload = () => {
 
 // --- PROFESSIONAL TAB SWITCHER ---
 function switchTab(tabId) {
-    // 1. Remove 'active' from all contents and all buttons
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-    document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.classList.remove('active');
-    });
+    // Hide all contents
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    // Deactivate all buttons
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
 
-    // 2. Add 'active' to the chosen tab and button
-    const targetContent = document.getElementById(tabId);
-    const targetBtn = document.querySelector(`[data-tab="${tabId}"]`);
-
-    if (targetContent) targetContent.classList.add('active');
-    if (targetBtn) targetBtn.classList.add('active');
+    // Show selected
+    const target = document.getElementById(tabId);
+    if (target) target.classList.add('active');
     
-    // 3. Optional: Refresh data when switching to summary or history
+    const btn = document.querySelector(`[data-tab="${tabId}"]`);
+    if (btn) btn.classList.add('active');
+
     if (tabId === 'history' || tabId === 'summary') refreshAll();
 }
 

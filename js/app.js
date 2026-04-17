@@ -1,21 +1,26 @@
 /**
- * js/app.js - Final Verified Logic for Parshwanatha Rice Mill
+ * js/app.js - Unified Enterprise Logic
  */
 
 // --- 1. CORE REFRESH LOGIC ---
+// Ensure this is only declared ONCE
 const refreshAll = async () => {
     try {
         await viewDayLog();
         await generateSummary();
-    } catch (e) { console.error("Refresh Error:", e); }
+    } catch (e) { 
+        console.error("Refresh Error:", e); 
+    }
 };
 
-// --- 2. TAB SWITCHER ---
+// --- 2. THE TAB SWITCHER ---
 const switchTab = (tabId) => {
+    // Hide all contents
     document.querySelectorAll('.tab-content').forEach(c => {
         c.classList.remove('active');
         c.style.display = "none";
     });
+    // Deactivate all nav buttons
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
     const target = document.getElementById(tabId);
@@ -27,7 +32,10 @@ const switchTab = (tabId) => {
     }
     if (nav) nav.classList.add('active');
 
-    if (tabId === 'history-tab' || tabId === 'stock-tab') refreshAll();
+    // Only refresh data on specific tabs to save memory
+    if (tabId === 'history-tab' || tabId === 'stock-tab' || tabId === 'dashboard-tab') {
+        refreshAll();
+    }
 };
 
 // --- 3. INITIALIZATION ---
@@ -39,22 +47,38 @@ window.onload = () => {
         dp.onchange = refreshAll;
     }
 
+    // Bind Navigation Clicks
     document.querySelectorAll('.nav-item').forEach(btn => {
         btn.onclick = () => switchTab(btn.getAttribute('data-tab'));
     });
 
-    if (document.getElementById('btn_save_hulling')) document.getElementById('btn_save_hulling').onclick = saveHulling;
-    if (document.getElementById('btn_save_stock')) document.getElementById('btn_save_stock').onclick = saveStock;
+    // Bind Save Buttons (Matching your HTML IDs)
+    if (document.getElementById('btn_save_hulling')) 
+        document.getElementById('btn_save_hulling').onclick = saveHulling;
+    
+    if (document.getElementById('btn_save_stock')) 
+        document.getElementById('btn_save_stock').onclick = saveStock;
 
+    // Bind Backup/Restore Buttons
+    if (document.getElementById('btn_backup')) 
+        document.getElementById('btn_backup').onclick = exportData;
+    
+    if (document.getElementById('btn_restore_trigger')) {
+        document.getElementById('btn_restore_trigger').onclick = () => {
+            document.getElementById('import_file').click();
+        };
+    }
+
+    // Default startup
     switchTab('hulling-tab');
     refreshAll();
 };
 
-// --- 4. HULLING & STOCK LOGIC ---
+// --- 4. DATA LOGIC ---
 async function saveHulling() {
     const name = document.getElementById('h_name').value.trim();
     const weightVal = document.getElementById('h_weight').value;
-    if (!name || !weightVal) return alert("Fill Name and Weight");
+    if (!name || !weightVal) return alert("Please fill Name and Weight");
 
     const kg = Logic.processWeight(weightVal);
     const rate = document.getElementById('h_rate').value || 150;
@@ -89,44 +113,55 @@ async function saveStock() {
     refreshAll();
 }
 
-// --- 5. SETTINGS & DATA MANAGEMENT ---
-function addNewVariety() {
-    const name = document.getElementById('new_item_name').value.trim();
-    const cat = document.getElementById('new_item_category').value;
-    if (!name) return alert("Enter name");
-
-    const select = document.getElementById('st_type');
-    const opt = document.createElement("option");
-    opt.text = `${name} (${cat})`;
-    select.add(opt);
-
-    document.getElementById('new_item_name').value = "";
-    showToast(`${name} added!`);
-}
-
+// --- 5. BACKUP & RESTORE (MATCHING YOUR HTML) ---
 async function exportData() {
-    const hulling = await db.hulling.toArray();
-    const stock = await db.stock.toArray();
-    const blob = new Blob([JSON.stringify({hulling, stock})], {type: "application/json"});
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Mill_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
+    try {
+        const hulling = await db.hulling.toArray();
+        const stock = await db.stock.toArray();
+        const backupData = JSON.stringify({ hulling, stock });
+        
+        const blob = new Blob([backupData], { type: "application/json" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Mill_Backup_${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        showToast("Backup Created!");
+    } catch (err) {
+        alert("Export Failed: " + err);
+    }
 }
 
+// This function handles the actual file import
 function importData(event) {
     const file = event.target.files[0];
+    if (!file) return;
+
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            await db.hulling.clear(); await db.stock.clear();
-            await db.hulling.bulkAdd(data.hulling);
-            await db.stock.bulkAdd(data.stock);
-            alert("Restored!"); location.reload();
-        } catch (err) { alert("Invalid File"); }
+            if (!data.hulling || !data.stock) throw new Error("Invalid file format");
+
+            // Confirmation before wiping data
+            if (confirm("This will replace your current data with the backup. Continue?")) {
+                await db.hulling.clear();
+                await db.stock.clear();
+                await db.hulling.bulkAdd(data.hulling);
+                await db.stock.bulkAdd(data.stock);
+                alert("Restore Successful!");
+                location.reload();
+            }
+        } catch (err) {
+            alert("Restore Failed: Make sure it's a valid .json backup file.");
+            console.error(err);
+        }
     };
     reader.readAsText(file);
+}
+
+// Add event listener for the file input itself
+if (document.getElementById('import_file')) {
+    document.getElementById('import_file').onchange = (e) => importData(e);
 }
 
 // --- 6. UI HELPERS ---
@@ -135,14 +170,13 @@ async function viewDayLog() {
     const items = await db.hulling.where('date').equals(d).toArray();
     let html = "";
     items.forEach(x => {
-        html += `<div class="log-card">
-            <div><b>${x.name}</b><br><small>${Logic.formatDisplay(Logic.processWeight(x.weight))}</small></div>
-            <div class="log-actions">
-                <span style="color:${x.status==='Paid'?'green':'red'}">${x.status}</span>
-            </div>
+        html += `<div class="card" style="border-left:5px solid orange; display:flex; justify-content:space-between; margin-bottom:10px;">
+            <div><b>${x.name}</b><br><small>${x.weight} Q</small></div>
+            <span style="color:${x.status==='Paid'?'green':'red'}">${x.status}</span>
         </div>`;
     });
-    document.getElementById('day_log').innerHTML = html || "No records.";
+    const log = document.getElementById('day_log');
+    if (log) log.innerHTML = html || "No records for today.";
 }
 
 async function generateSummary() {
@@ -153,16 +187,19 @@ async function generateSummary() {
         const w = Logic.processWeight(i.weight);
         inv[i.type] += (i.action === 'Purchase' || i.action === 'Inward') ? w : -w;
     });
-    let html = "<table class='summary-table'><tr><th>Variety</th><th>Stock</th></tr>";
+    let html = "<table class='summary-table'><tr><th>Variety</th><th>Net Stock</th></tr>";
     Object.keys(inv).forEach(k => {
-        const val = inv[k];
-        const disp = k.toLowerCase().includes("bag") ? `${val} Pcs` : Logic.formatDisplay(val);
-        html += `<tr><td>${k}</td><td style="color:${val < 0 ? 'red':'green'}"><b>${disp}</b></td></tr>`;
+        html += `<tr><td>${k}</td><td><b>${inv[k].toFixed(2)} Q</b></td></tr>`;
     });
-    document.getElementById('summary_display').innerHTML = html + "</table>";
+    const display = document.getElementById('summary_display');
+    if (display) display.innerHTML = html + "</table>";
 }
 
 function showToast(text) {
     const t = document.getElementById('toast');
-    if (t) { t.innerText = text; t.className = "show"; setTimeout(() => t.className = "", 3000); }
+    if (t) {
+        t.innerText = text;
+        t.className = "show";
+        setTimeout(() => t.className = "", 3000);
+    }
 }

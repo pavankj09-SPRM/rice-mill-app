@@ -60,6 +60,55 @@ window.onload = () => {
     bind('btn_save_stock', saveStock);
     bind('btn_add_variety', addNewVariety);
     bind('btn_backup', exportData);
+    
+    bind('btn_master_reset', async () => {
+        if(confirm("DANGER: This wipes everything! Continue?")) {
+            await db.delete();
+            location.reload();
+        }
+    });
+
+    // 4. Bind Restore Logic (Renamed to avoid "Already Declared" errors)
+    const systemRestoreBtn = document.getElementById('btn_restore_trigger');
+    const systemFileInput = document.getElementById('import_file');
+
+    if (systemRestoreBtn && systemFileInput) {
+        systemRestoreBtn.onclick = () => systemFileInput.click();
+        systemFileInput.onchange = (e) => importData(e);
+    }
+
+    // 5. Initial Calculations
+    setupAutoCalculations();
+
+    // 6. Start App
+    switchTab('hulling-tab');
+    window.refreshAll();
+};
+/*
+window.onload = () => {
+    // 1. Set Default Date
+    const today = new Date().toISOString().split('T')[0];
+    const datePicker = document.getElementById('main_date_picker');
+    if (datePicker) {
+        datePicker.value = today;
+        datePicker.onchange = window.refreshAll;
+    }
+
+    // 2. Bind Navigation
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.onclick = () => switchTab(btn.getAttribute('data-tab'));
+    });
+
+    // 3. Bind Main Action Buttons
+    const bind = (id, func) => {
+        const el = document.getElementById(id);
+        if (el) el.onclick = func;
+    };
+
+    bind('btn_save_hulling', saveHulling);
+    bind('btn_save_stock', saveStock);
+    bind('btn_add_variety', addNewVariety);
+    bind('btn_backup', exportData);
     bind('btn_master_reset', async () => {
         if(confirm("DANGER: This wipes everything! Continue?")) {
             await db.delete();
@@ -83,7 +132,7 @@ window.onload = () => {
     switchTab('hulling-tab');
     window.refreshAll();
 };
-
+*/
 // Separate helper to keep window.onload clean
 function setupAutoCalculations() {
     const hWeight = document.getElementById('h_weight');

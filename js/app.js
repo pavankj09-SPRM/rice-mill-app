@@ -370,51 +370,45 @@ async function importData(event) {
     if (!file) return;
 
     const reader = new FileReader();
+
     reader.onload = async (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            
-            if (confirm("This will WIPE all current data and restore from backup. Continue?")) {
-                // 1. Clear current tables to avoid ID conflicts
-                await Promise.all([
-                    db.settings.clear(),
-                    db.hulling.clear(),
-                    db.stock.clear(),
-                    db.expenses.clear()
-                ]);
 
-                // 2. Use bulkPut to force-insert the data with their existing IDs
-                if (data.settings && data.settings.length > 0) await db.settings.bulkPut(data.settings);
-                if (data.hulling && data.hulling.length > 0) await db.hulling.bulkPut(data.hulling);
-                if (data.stock && data.stock.length > 0) await db.stock.bulkPut(data.stock);
-                if (data.expenses && data.expenses.length > 0) await db.expenses.bulkPut(data.expenses);
-
-                alert("System Restored Successfully!");
-                location.reload(); 
+            // Validate structure
+            if (!data.settings || !data.hulling || !data.stock) {
+                throw new Error("Invalid backup format");
             }
+
+            if (!confirm("⚠️ This will DELETE all current data and restore backup. Continue?")) return;
+
+            // 1. Clear all tables
+            await db.transaction('rw', db.settings, db.hulling, db.stock, db.expenses, async () => {
+                await db.settings.clear();
+                await db.hulling.clear();
+                await db.stock.clear();
+                if (db.expenses) await db.expenses.clear();
+
+                // 2. Use bulkPut (IMPORTANT FIX)
+                await db.settings.bulkPut(data.settings || []);
+                await db.hulling.bulkPut(data.hulling || []);
+                await db.stock.bulkPut(data.stock || []);
+                if (data.expenses && db.expenses) {
+                    await db.expenses.bulkPut(data.expenses);
+                }
+            });
+
+            alert("✅ Restore Successful!");
+            location.reload();
+
         } catch (err) {
-            alert("Critical Restore Error: " + err.message);
-            console.error("Technical Details:", err);
+            console.error(err);
+            alert("❌ Restore Failed: " + err.message);
         }
     };
+
     reader.readAsText(file);
 }
-/*
-function importData(event) {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            await db.settings.clear(); await db.hulling.clear(); await db.stock.clear();
-            if (data.settings) await db.settings.bulkAdd(data.settings);
-            if (data.hulling) await db.hulling.bulkAdd(data.hulling);
-            if (data.stock) await db.stock.bulkAdd(data.stock);
-            alert("Restored Successfully!");
-            window.refreshAll();
-        } catch (err) { alert("Invalid File"); }
-    };
-    reader.readAsText(event.target.files[0]);
-} */
 
 async function exportData() {
     const settings = await db.settings.toArray();

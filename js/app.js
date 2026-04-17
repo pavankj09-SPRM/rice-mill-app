@@ -374,25 +374,27 @@ async function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
             
-            if (confirm("Restore this backup? All current data will be replaced.")) {
-                // 1. Clear current tables to prevent key conflicts
-                await db.settings.clear();
-                await db.hulling.clear();
-                await db.stock.clear();
-                await db.expenses.clear();
+            if (confirm("This will WIPE all current data and restore from backup. Continue?")) {
+                // 1. Clear current tables to avoid ID conflicts
+                await Promise.all([
+                    db.settings.clear(),
+                    db.hulling.clear(),
+                    db.stock.clear(),
+                    db.expenses.clear()
+                ]);
 
-                // 2. Use bulkPut to import data that already has IDs
-                if (data.settings) await db.settings.bulkPut(data.settings);
-                if (data.hulling) await db.hulling.bulkPut(data.hulling);
-                if (data.stock) await db.stock.bulkPut(data.stock);
-                if (data.expenses) await db.expenses.bulkPut(data.expenses);
+                // 2. Use bulkPut to force-insert the data with their existing IDs
+                if (data.settings && data.settings.length > 0) await db.settings.bulkPut(data.settings);
+                if (data.hulling && data.hulling.length > 0) await db.hulling.bulkPut(data.hulling);
+                if (data.stock && data.stock.length > 0) await db.stock.bulkPut(data.stock);
+                if (data.expenses && data.expenses.length > 0) await db.expenses.bulkPut(data.expenses);
 
-                alert("Restore Successful!");
+                alert("System Restored Successfully!");
                 location.reload(); 
             }
         } catch (err) {
-            alert("Restore Failed: " + err.message);
-            console.error("Import Error:", err);
+            alert("Critical Restore Error: " + err.message);
+            console.error("Technical Details:", err);
         }
     };
     reader.readAsText(file);

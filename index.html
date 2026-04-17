@@ -47,10 +47,10 @@
     <div id="stock-tab" class="tab-content">
         <div class="card">
             <h3>Inventory Movement</h3>
-            <select id="st_action">
-                <option value="Purchase">Purchase (Stock In)</option>
-                <option value="Sale">Sale (Stock Out)</option>
-                <option value="Processing">Processing Out (Paddy)</option>
+            <select id="st_action" onchange="loadDropdowns()">
+                <option value="Purchase">Stock In (Paddy Purchase)</option>
+                <option value="Sale">Stock Out (Rice Sale)</option>
+                <option value="Misc">Misc or Other Sale</option>
             </select>
             <select id="st_type">
                 <option>Husk Waste</option>

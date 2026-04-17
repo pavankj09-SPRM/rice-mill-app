@@ -1,18 +1,20 @@
 const Logic = {
-    // Handles Quintal.Kg format
-    processWeight(val, type) {
-        let n = parseFloat(val) || 0;
-        let t = (type || '').toLowerCase();
-        if(t.includes('paddy') || t.includes('husk')) {
-            let q = Math.floor(n), k = Math.round((n - q) * 100);
-            return (q * 100) + k;
+    // Converts "1.20" or "50" into a standard number
+    processWeight: function(val, type) {
+        if (!val) return 0;
+        if (typeof val === 'string' && val.includes('.')) {
+            const parts = val.split('.');
+            return (parseInt(parts[0]) * 100) + parseInt(parts[1] || 0);
         }
-        return n.toString().includes('.') ? (Math.floor(n)*100 + Math.round((n - Math.floor(n))*100)) : n;
+        return parseFloat(val);
     },
 
-    formatDisplay(kg) {
-        let q = Math.floor(Math.abs(kg)/100), k = Math.round(Math.abs(kg)%100); 
-        let sign = kg < 0 ? '-' : '';
-        return `${sign}${q}.${k < 10 ? '0'+k : k} Q`; 
+    // Converts total number back into "X Q YY kg"
+    formatDisplay: function(totalKg) {
+        const isNegative = totalKg < 0;
+        const absKg = Math.abs(totalKg);
+        const q = Math.floor(absKg / 100);
+        const kg = Math.round(absKg % 100);
+        return `${isNegative ? '-' : ''}${q} Q ${kg.toString().padStart(2, '0')} kg`;
     }
 };

@@ -374,28 +374,26 @@ async function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
             
-            if (confirm("Restore this backup? This will merge/update your current records.")) {
-                // Use bulkPut to prevent "key path" errors
-                if (data.settings && data.settings.length > 0) {
-                    await db.settings.bulkPut(data.settings);
-                }
-                if (data.hulling && data.hulling.length > 0) {
-                    await db.hulling.bulkPut(data.hulling);
-                }
-                if (data.stock && data.stock.length > 0) {
-                    await db.stock.bulkPut(data.stock);
-                }
-                if (data.expenses && data.expenses.length > 0) {
-                    await db.expenses.bulkPut(data.expenses);
-                }
+            if (confirm("Restore this backup? This will replace your current records with the ones from the file.")) {
+                // Clear existing data to prevent ID conflicts
+                await db.settings.clear();
+                await db.hulling.clear();
+                await db.stock.clear();
+                await db.expenses.clear();
+
+                // Use bulkPut to import records that already have IDs
+                if (data.settings) await db.settings.bulkPut(data.settings);
+                if (data.hulling) await db.hulling.bulkPut(data.hulling);
+                if (data.stock) await db.stock.bulkPut(data.stock);
+                if (data.expenses) await db.expenses.bulkPut(data.expenses);
 
                 alert("Restore Successful!");
                 location.reload(); 
             }
         } catch (err) {
-            // This catches the specific error seen in your screenshot
+            // This catches the specific IDBObjectStore error shown in your screenshot
             alert("Error reading file: " + err.message);
-            console.error("Detailed Error:", err);
+            console.error("Import Error Details:", err);
         }
     };
     reader.readAsText(file);

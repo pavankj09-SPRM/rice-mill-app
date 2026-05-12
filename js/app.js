@@ -429,9 +429,7 @@ async function saveStock() {
         amount: document.getElementById('st_amount').value,
         date: document.getElementById('main_date_picker').value
     });*/
-    showToast("Stock Saved!");
-    window.refreshAll();
-}
+  
 
 // --- 6. PDF & LOGS ---
 async function viewDayLog() {

@@ -77,6 +77,13 @@ window.onload = () => {
         systemFileInput.onchange = (e) => importData(e);
     }
 
+    const stockType = document.getElementById('st_type');
+
+        if (stockType) {
+
+        stockType.onchange = toggleStockInputs;
+    }
+
     // 5. Initial Calculations
     setupAutoCalculations();
 
@@ -168,43 +175,69 @@ function setupAutoCalculations() {
 
     const runStockCalc = () => {
 
-        const bags = parseFloat(stBags?.value) || 0;
+        const stWeight = document.getElementById('st_weight');
 
-        const bagWeight = parseFloat(stBagWeight?.value) || 0;
+const stRate = document.getElementById('st_rate');
 
-        const weight = parseFloat(stWeight.value) || 0;
+const stAmount = document.getElementById('st_amount');
 
-        const rate = parseFloat(stRate.value) || 0;
+const stBags = document.getElementById('st_bags');
 
-        let total = 0;
+const stBagWeight = document.getElementById('st_bag_weight');
 
-        // If bag system used
-        if (bags > 0 && bagWeight > 0) {
+const runStockCalc = () => {
 
-            total = bags * rate;
+    const bags = parseFloat(stBags?.value) || 0;
 
-            // auto set total weight in KG
-            stWeight.value = bags * bagWeight;
-        }
+    const bagWeight = parseFloat(stBagWeight?.value) || 0;
 
-        // Normal mode
-        else {
+    const weight = parseFloat(stWeight.value) || 0;
 
-            total = weight * rate;
-        }
+    const rate = parseFloat(stRate.value) || 0;
 
-        stAmount.value = Math.round(total);
-    };
+    let total = 0;
 
-    if (stWeight && stRate) {
-        stWeight.oninput = runStockCalc;
-        stRate.oninput = runStockCalc;
+    // =========================
+    // BAG MODE
+    // =========================
+
+    if (bags > 0 && bagWeight > 0) {
+
+        // TOTAL KG
+        const totalKg = bags * bagWeight;
+
+        // Auto fill hidden weight
+        stWeight.value = totalKg;
+
+        // KG × RATE
+        total = totalKg * rate;
     }
 
-    if (stBags && stBagWeight) {
-        stBags.oninput = runStockCalc;
-        stBagWeight.oninput = runStockCalc;
+    // =========================
+    // NORMAL MODE
+    // =========================
+
+    else {
+
+        total = weight * rate;
     }
+
+    stAmount.value = Math.round(total);
+};
+
+if (stWeight && stRate) {
+
+    stWeight.oninput = runStockCalc;
+
+    stRate.oninput = runStockCalc;
+}
+
+if (stBags && stBagWeight) {
+
+    stBags.oninput = runStockCalc;
+
+    stBagWeight.oninput = runStockCalc;
+}
 }
 
 function getUnitLabel(type = "") {
@@ -242,6 +275,41 @@ function getUnitLabel(type = "") {
     }
 
     return "Qty";
+}
+
+    function toggleStockInputs() {
+
+    const type =
+        document.getElementById('st_type').value.toLowerCase();
+
+    const weightField =
+        document.getElementById('st_weight');
+
+    const bagsField =
+        document.getElementById('st_bags');
+
+    const bagWeightField =
+        document.getElementById('st_bag_weight');
+
+    // DEFAULT
+    weightField.style.display = "block";
+
+    bagsField.style.display = "none";
+
+    bagWeightField.style.display = "none";
+
+    // Rice sales use bag mode
+    if (
+        type.includes("rice") ||
+        type.includes("sona")
+    ) {
+
+        weightField.style.display = "none";
+
+        bagsField.style.display = "block";
+
+        bagWeightField.style.display = "block";
+    }
 }
 // --- 3. INITIALIZATION ---
 /*

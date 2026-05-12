@@ -178,36 +178,110 @@ function setupAutoCalculations() {
 
     const runStockCalc = () => {
 
-        const bags = parseFloat(stBags?.value) || 0;
+    const type =
+        document.getElementById('st_type')
+            .value
+            .toLowerCase();
 
-        const bagWeight = parseFloat(stBagWeight?.value) || 0;
+    const bags =
+        parseFloat(stBags?.value) || 0;
 
-        const weight = parseFloat(stWeight.value) || 0;
+    const bagWeight =
+        parseFloat(stBagWeight?.value) || 0;
 
-        const rate = parseFloat(stRate.value) || 0;
+    const weight =
+        parseFloat(stWeight.value) || 0;
 
-        let total = 0;
+    const rate =
+        parseFloat(stRate.value) || 0;
 
-        // BAG MODE
-        if (bags > 0 && bagWeight > 0) {
+    let total = 0;
 
-            const totalKg = bags * bagWeight;
+    // =========================
+    // RICE BAG SALE
+    // =========================
 
-            // Auto fill hidden total weight
-            stWeight.value = totalKg;
+    if (
+        bags > 0 &&
+        bagWeight > 0
+    ) {
 
-            // KG × Rate
-            total = totalKg * rate;
-        }
+        const totalKg =
+            bags * bagWeight;
 
-        // NORMAL MODE
-        else {
+        stWeight.value = totalKg;
 
-            total = weight * rate;
-        }
+        total =
+            totalKg * rate;
+    }
 
-        stAmount.value = Math.round(total);
-    };
+    // =========================
+    // SALT
+    // RATE PER BAG
+    // =========================
+
+    else if (
+        type.includes("salt")
+    ) {
+
+        total =
+            weight * rate;
+    }
+
+    // =========================
+    // EMPTY BAGS
+    // RATE PER PIECE
+    // =========================
+
+    else if (
+        type.includes("empty bag") ||
+        type.includes("bag 25") ||
+        type.includes("bag 50")
+    ) {
+
+        total =
+            weight * rate;
+    }
+
+    // =========================
+    // DIESEL
+    // RATE PER LITRE
+    // =========================
+
+    else if (
+        type.includes("diesel")
+    ) {
+
+        total =
+            weight * rate;
+    }
+
+    // =========================
+    // HUSK
+    // RATE PER KG
+    // =========================
+
+    else if (
+        type.includes("husk")
+    ) {
+
+        total =
+            weight * rate;
+    }
+
+    // =========================
+    // NORMAL
+    // =========================
+
+    else {
+
+        total =
+            weight * rate;
+    }
+
+    stAmount.value =
+        Math.round(total);
+};
 
     // EVENTS
 
@@ -228,7 +302,7 @@ function getUnitLabel(type = "") {
 
     type = type.toLowerCase();
 
-    // Paddy Purchase
+    // Paddy
     if (
         type.includes("white-new") ||
         type.includes("white-old") ||
@@ -238,30 +312,44 @@ function getUnitLabel(type = "") {
         return "Q";
     }
 
-    // Rice / Husk / Salt
+    // Husk
     if (
-        type.includes("rice") ||
-        type.includes("sona") ||
-        type.includes("husk") ||
-        type.includes("salt")
+        type.includes("husk")
     ) {
         return "KG";
     }
 
     // Diesel
-    if (type.includes("diesel")) {
+    if (
+        type.includes("diesel")
+    ) {
         return "Ltr";
     }
 
-    // Bags
-    if (type.includes("bag")) {
+    // Salt
+    if (
+        type.includes("salt")
+    ) {
+        return "Bag";
+    }
+
+    // Empty Bags
+    if (
+        type.includes("empty bag") ||
+        type.includes("bag 25") ||
+        type.includes("bag 50")
+    ) {
         return "Nos";
     }
 
-    return "Qty";
+    // Rice
+    return "KG";
 }
 
-    function toggleStockInputs() {
+function toggleStockInputs() {
+
+    const action =
+        document.getElementById('st_action').value;
 
     const type =
         document.getElementById('st_type').value.toLowerCase();
@@ -275,24 +363,95 @@ function getUnitLabel(type = "") {
     const bagWeightField =
         document.getElementById('st_bag_weight');
 
-    // DEFAULT
-    weightField.style.display = "block";
-
+    // DEFAULT HIDE
     bagsField.style.display = "none";
-
     bagWeightField.style.display = "none";
 
-    // Rice sales use bag mode
+    // =========================
+    // PADDY PURCHASE
+    // =========================
+
     if (
-        type.includes("rice") ||
-        type.includes("sona")
+        action === "Purchase"
     ) {
 
-        weightField.style.display = "none";
+        weightField.style.display = "block";
+    }
 
-        bagsField.style.display = "block";
+    // =========================
+    // RICE SALE
+    // =========================
 
-        bagWeightField.style.display = "block";
+    else if (
+        action === "Sale"
+    ) {
+
+        // SALT
+        if (type.includes("salt")) {
+
+            weightField.style.display = "block";
+
+            bagsField.style.display = "none";
+
+            bagWeightField.style.display = "none";
+        }
+
+        // EMPTY BAG
+        else if (
+            type.includes("empty bag") ||
+            type.includes("bag 25") ||
+            type.includes("bag 50")
+        ) {
+
+            weightField.style.display = "block";
+
+            bagsField.style.display = "none";
+
+            bagWeightField.style.display = "none";
+        }
+
+        // DIESEL
+        else if (
+            type.includes("diesel")
+        ) {
+
+            weightField.style.display = "block";
+
+            bagsField.style.display = "none";
+
+            bagWeightField.style.display = "none";
+        }
+
+        // HUSK
+        else if (
+            type.includes("husk")
+        ) {
+
+            weightField.style.display = "block";
+
+            bagsField.style.display = "none";
+
+            bagWeightField.style.display = "none";
+        }
+
+        // NORMAL RICE SALES
+        else {
+
+            weightField.style.display = "none";
+
+            bagsField.style.display = "block";
+
+            bagWeightField.style.display = "block";
+        }
+    }
+
+    // =========================
+    // MISC
+    // =========================
+
+    else {
+
+        weightField.style.display = "block";
     }
 }
 // --- 3. INITIALIZATION ---

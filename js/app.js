@@ -839,73 +839,13 @@ async function generateSummary() {
 
 function showToast(text) {
     const t = document.getElementById('toast');
-    if (t) { t.innerText = text; t.className = "show"; setTimeout(() => t.className = "", 3000); }
+
+    if (t) {
+        t.innerText = text;
+        t.className = "show";
+
+        setTimeout(() => {
+            t.className = "";
+        }, 3000);
+    }
 }
-
-async function importData(event) {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            
-            if (confirm("Restore this backup? Current data will be replaced.")) {
-                // Wipe current database tables
-                await db.settings.clear();
-                await db.hulling.clear();
-                await db.stock.clear();
-                
-                // Add data from your JSON backup
-                if (data.settings) await db.settings.bulkAdd(data.settings);
-                if (data.hulling) await db.hulling.bulkAdd(data.hulling);
-                if (data.stock) await db.stock.bulkAdd(data.stock);
-
-                alert("Restore Successful!");
-                location.reload(); // Refresh to show your 31 varieties
-            }
-        } catch (err) {
-            alert("Error reading file: " + err.message);
-        }
-    };
-    reader.readAsText(event.target.files[0]);
-}
-
-/*
-// Add this at the bottom of js/app.js
-async function importData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            
-            // Validate the JSON structure
-            if (!data.settings || !data.hulling || !data.stock) {
-                throw new Error("Invalid backup file format");
-            }
-
-            if (confirm("Restore this backup? Current data will be replaced.")) {
-                // Clear all existing data
-                await db.settings.clear();
-                await db.hulling.clear();
-                await db.stock.clear();
-                if (db.expenses) await db.expenses.clear();
-
-                // Bulk add data from your JSON file
-                await db.settings.bulkAdd(data.settings);
-                await db.hulling.bulkAdd(data.hulling);
-                await db.stock.bulkAdd(data.stock);
-                if (data.expenses && db.expenses) await db.expenses.bulkAdd(data.expenses);
-
-                alert("Restore Successful!");
-                location.reload(); // Refresh the page to show the new data
-            }
-        } catch (err) {
-            alert("Restore Failed: " + err.message);
-            console.error(err);
-        }
-    };
-    reader.readAsText(file);
-}
-*/

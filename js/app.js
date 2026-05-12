@@ -135,14 +135,17 @@ window.onload = () => {
 */
 // Separate helper to keep window.onload clean
 function setupAutoCalculations() {
+
+    // ---------------- HULLING AUTO CALC ----------------
     const hWeight = document.getElementById('h_weight');
     const hRate = document.getElementById('h_rate');
     const hTotal = document.getElementById('h_total_input');
-    
+
     const runHullingCalc = () => {
         if (document.activeElement !== hTotal) {
             const kg = Logic.processWeight(hWeight.value);
             const rate = parseFloat(hRate.value) || 0;
+
             hTotal.value = Math.round((kg / 100) * rate);
         }
     };
@@ -150,6 +153,23 @@ function setupAutoCalculations() {
     if (hWeight && hRate) {
         hWeight.oninput = runHullingCalc;
         hRate.oninput = runHullingCalc;
+    }
+
+    // ---------------- STOCK AUTO CALC ----------------
+    const stWeight = document.getElementById('st_weight');
+    const stRate = document.getElementById('st_rate');
+    const stAmount = document.getElementById('st_amount');
+
+    const runStockCalc = () => {
+        const w = parseFloat(stWeight.value) || 0;
+        const r = parseFloat(stRate.value) || 0;
+
+        stAmount.value = Math.round(w * r);
+    };
+
+    if (stWeight && stRate) {
+        stWeight.oninput = runStockCalc;
+        stRate.oninput = runStockCalc;
     }
 }
 // --- 3. INITIALIZATION ---

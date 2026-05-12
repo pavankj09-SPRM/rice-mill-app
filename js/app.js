@@ -141,14 +141,17 @@ window.onload = () => {
 };
 */
 // Separate helper to keep window.onload clean
+// Separate helper to keep window.onload clean
 function setupAutoCalculations() {
 
     // ---------------- HULLING AUTO CALC ----------------
+
     const hWeight = document.getElementById('h_weight');
     const hRate = document.getElementById('h_rate');
     const hTotal = document.getElementById('h_total_input');
 
     const runHullingCalc = () => {
+
         if (document.activeElement !== hTotal) {
 
             const kg = Logic.processWeight(hWeight.value);
@@ -159,6 +162,7 @@ function setupAutoCalculations() {
     };
 
     if (hWeight && hRate) {
+
         hWeight.oninput = runHullingCalc;
         hRate.oninput = runHullingCalc;
     }
@@ -169,75 +173,55 @@ function setupAutoCalculations() {
     const stRate = document.getElementById('st_rate');
     const stAmount = document.getElementById('st_amount');
 
-    // NEW OPTIONAL FIELDS
     const stBags = document.getElementById('st_bags');
     const stBagWeight = document.getElementById('st_bag_weight');
 
     const runStockCalc = () => {
 
-        const stWeight = document.getElementById('st_weight');
+        const bags = parseFloat(stBags?.value) || 0;
 
-const stRate = document.getElementById('st_rate');
+        const bagWeight = parseFloat(stBagWeight?.value) || 0;
 
-const stAmount = document.getElementById('st_amount');
+        const weight = parseFloat(stWeight.value) || 0;
 
-const stBags = document.getElementById('st_bags');
+        const rate = parseFloat(stRate.value) || 0;
 
-const stBagWeight = document.getElementById('st_bag_weight');
+        let total = 0;
 
-const runStockCalc = () => {
+        // BAG MODE
+        if (bags > 0 && bagWeight > 0) {
 
-    const bags = parseFloat(stBags?.value) || 0;
+            const totalKg = bags * bagWeight;
 
-    const bagWeight = parseFloat(stBagWeight?.value) || 0;
+            // Auto fill hidden total weight
+            stWeight.value = totalKg;
 
-    const weight = parseFloat(stWeight.value) || 0;
+            // KG × Rate
+            total = totalKg * rate;
+        }
 
-    const rate = parseFloat(stRate.value) || 0;
+        // NORMAL MODE
+        else {
 
-    let total = 0;
+            total = weight * rate;
+        }
 
-    // =========================
-    // BAG MODE
-    // =========================
+        stAmount.value = Math.round(total);
+    };
 
-    if (bags > 0 && bagWeight > 0) {
+    // EVENTS
 
-        // TOTAL KG
-        const totalKg = bags * bagWeight;
+    if (stWeight && stRate) {
 
-        // Auto fill hidden weight
-        stWeight.value = totalKg;
-
-        // KG × RATE
-        total = totalKg * rate;
+        stWeight.oninput = runStockCalc;
+        stRate.oninput = runStockCalc;
     }
 
-    // =========================
-    // NORMAL MODE
-    // =========================
+    if (stBags && stBagWeight) {
 
-    else {
-
-        total = weight * rate;
+        stBags.oninput = runStockCalc;
+        stBagWeight.oninput = runStockCalc;
     }
-
-    stAmount.value = Math.round(total);
-};
-
-if (stWeight && stRate) {
-
-    stWeight.oninput = runStockCalc;
-
-    stRate.oninput = runStockCalc;
-}
-
-if (stBags && stBagWeight) {
-
-    stBags.oninput = runStockCalc;
-
-    stBagWeight.oninput = runStockCalc;
-}
 }
 
 function getUnitLabel(type = "") {

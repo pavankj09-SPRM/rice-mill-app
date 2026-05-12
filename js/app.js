@@ -321,6 +321,7 @@ async function saveStock() {
     action: document.getElementById('st_action').value,
     type: document.getElementById('st_type').value,
     weight: parseFloat(document.getElementById('st_weight').value) || 0,
+    rate: parseFloat(document.getElementById('st_rate').value) || 0,
     amount: parseFloat(document.getElementById('st_amount').value) || 0,
     date: document.getElementById('main_date_picker').value
 });

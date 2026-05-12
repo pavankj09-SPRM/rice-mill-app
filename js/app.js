@@ -358,37 +358,134 @@ async function viewDayLog() {
 }
 
 async function generateBillPDF(id, table) {
+
     const { jsPDF } = window.jspdf;
+
     const doc = new jsPDF();
+
     const data = await db[table].get(Number(id));
 
+    if (!data) {
+        alert("Record not found");
+        return;
+    }
+
+    // ---------------- HEADER ----------------
+
     doc.setFontSize(20);
-    doc.text("SHRI PARSHWANATHA RICE MILL", 105, 20, { align: "center" });
+
+    doc.text(
+        "SHRI PARSHWANATHA RICE MILL",
+        105,
+        20,
+        { align: "center" }
+    );
+
     doc.setFontSize(10);
-    doc.text("Proprietor: Jwalaprasad K J | Phone: [+91 9482364402, +91 8861080602]", 105, 27, { align: "center" });
-    doc.text("Sagara, Shimoga | Date: " + data.date, 105, 32, { align: "center" });
+
+    doc.text(
+        "Proprietor: Jwalaprasad K J | Phone: +91 9482364402, +91 8861080602",
+        105,
+        27,
+        { align: "center" }
+    );
+
+    doc.text(
+        "Sullalli, 577453 | Date: " + data.date,
+        105,
+        32,
+        { align: "center" }
+    );
+
     doc.line(20, 35, 190, 35);
 
-    const rows = [[
-    table === 'hulling' ? "Hulling Service" : data.type,
+    // ---------------- CUSTOMER NAME ----------------
 
-        (parseFloat(data.weight) || 0).toFixed(2) + " Q",
+    doc.setFontSize(12);
 
-        table === 'hulling'
-                ? "Rs. " + ((parseFloat(data.rate) || 0).toFixed(2))
-                : "-",
+    doc.text(
+        "Name: " + (data.name || "-"),
+        20,
+        45
+    );
 
-                "Rs. " + ((parseFloat(data.total || data.amount) || 0).toFixed(2))
-    ]];
+    // ---------------- TABLE DATA ----------------
+
+    let rows = [];
+
+    // ===== HULLING PDF =====
+
+    if (table === 'hulling') {
+
+        rows = [[
+
+            "Hulling Service",
+
+            (parseFloat(data.weight) || 0).toFixed(2) + " Q",
+
+            "Rs. " + ((parseFloat(data.rate) || 0).toFixed(2)),
+
+            "Rs. " + ((parseFloat(data.total) || 0).toFixed(2))
+        ]];
+    }
+
+    // ===== STOCK PDF =====
+
+    else if (table === 'stock') {
+
+        rows = [[
+
+            data.type || "-",
+
+            (parseFloat(data.weight) || 0).toFixed(2) + " Q",
+
+            "Rs. " + ((parseFloat(data.rate) || 0).toFixed(2)),
+
+            "Rs. " + ((parseFloat(data.amount) || 0).toFixed(2))
+        ]];
+    }
+
+    // ---------------- TABLE ----------------
 
     doc.autoTable({
-        startY: 40,
-        head: [['Description', 'Weight', 'Rate', 'Total']],
+
+        startY: 55,
+
+        head: [[
+            table === 'hulling'
+                ? 'Service'
+                : 'Stock Type',
+
+            'Weight',
+
+            'Rate',
+
+            'Total'
+        ]],
+
         body: rows,
+
         theme: 'striped',
-        headStyles: { fillColor: [103, 58, 183] }
+
+        headStyles: {
+            fillColor: [103, 58, 183]
+        }
     });
-    doc.save(`${data.name}_Bill.pdf`);
+
+    // ---------------- FOOTER ----------------
+
+    doc.setFontSize(10);
+
+    doc.text(
+        "Thank you for visiting Shri Parshwanatha Rice Mill",
+        105,
+        doc.lastAutoTable.finalY + 20,
+        { align: "center" }
+    );
+
+    // ---------------- SAVE PDF ----------------
+
+    doc.save(`${data.name}_${table}_Bill.pdf`);
 }
 
 async function deleteEntry(id, table) {

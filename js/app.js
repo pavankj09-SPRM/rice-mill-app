@@ -143,6 +143,7 @@ function setupAutoCalculations() {
 
     const runHullingCalc = () => {
         if (document.activeElement !== hTotal) {
+
             const kg = Logic.processWeight(hWeight.value);
             const rate = parseFloat(hRate.value) || 0;
 
@@ -156,21 +157,91 @@ function setupAutoCalculations() {
     }
 
     // ---------------- STOCK AUTO CALC ----------------
+
     const stWeight = document.getElementById('st_weight');
     const stRate = document.getElementById('st_rate');
     const stAmount = document.getElementById('st_amount');
 
-    const runStockCalc = () => {
-        const w = parseFloat(stWeight.value) || 0;
-        const r = parseFloat(stRate.value) || 0;
+    // NEW OPTIONAL FIELDS
+    const stBags = document.getElementById('st_bags');
+    const stBagWeight = document.getElementById('st_bag_weight');
 
-        stAmount.value = Math.round(w * r);
+    const runStockCalc = () => {
+
+        const bags = parseFloat(stBags?.value) || 0;
+
+        const bagWeight = parseFloat(stBagWeight?.value) || 0;
+
+        const weight = parseFloat(stWeight.value) || 0;
+
+        const rate = parseFloat(stRate.value) || 0;
+
+        let total = 0;
+
+        // If bag system used
+        if (bags > 0 && bagWeight > 0) {
+
+            total = bags * rate;
+
+            // auto set total weight in KG
+            stWeight.value = bags * bagWeight;
+        }
+
+        // Normal mode
+        else {
+
+            total = weight * rate;
+        }
+
+        stAmount.value = Math.round(total);
     };
 
     if (stWeight && stRate) {
         stWeight.oninput = runStockCalc;
         stRate.oninput = runStockCalc;
     }
+
+    if (stBags && stBagWeight) {
+        stBags.oninput = runStockCalc;
+        stBagWeight.oninput = runStockCalc;
+    }
+}
+
+function getUnitLabel(type = "") {
+
+    type = type.toLowerCase();
+
+    // Paddy Purchase
+    if (
+        type.includes("white-new") ||
+        type.includes("white-old") ||
+        type.includes("red-new") ||
+        type.includes("red-old")
+    ) {
+        return "Q";
+    }
+
+    // Rice / Husk / Salt
+    if (
+        type.includes("rice") ||
+        type.includes("sona") ||
+        type.includes("husk") ||
+        type.includes("salt")
+    ) {
+        return "KG";
+    }
+
+    // Diesel
+    if (type.includes("diesel")) {
+        return "Ltr";
+    }
+
+    // Bags
+    if (type.includes("bag")) {
+        return "Nos";
+    }
+
+    return "Qty";
 }
 // --- 3. INITIALIZATION ---
 /*
@@ -316,15 +387,40 @@ async function saveHulling() {
 }
 
 async function saveStock() {
+
+    const bags = parseFloat(document.getElementById('st_bags')?.value) || 0;
+
+    const bagWeight = parseFloat(document.getElementById('st_bag_weight')?.value) || 0;
+
+    const totalWeight = parseFloat(document.getElementById('st_weight').value) || 0;
+
     await db.stock.add({
-    name: document.getElementById('st_name').value.trim(),
-    action: document.getElementById('st_action').value,
-    type: document.getElementById('st_type').value,
-    weight: parseFloat(document.getElementById('st_weight').value) || 0,
-    rate: parseFloat(document.getElementById('st_rate').value) || 0,
-    amount: parseFloat(document.getElementById('st_amount').value) || 0,
-    date: document.getElementById('main_date_picker').value
-});
+
+        name: document.getElementById('st_name').value.trim(),
+
+        action: document.getElementById('st_action').value,
+
+        type: document.getElementById('st_type').value,
+
+        weight: totalWeight,
+
+        bags: bags,
+
+        bagWeight: bagWeight,
+
+        rate: parseFloat(document.getElementById('st_rate').value) || 0,
+
+        amount: parseFloat(document.getElementById('st_amount').value) || 0,
+
+        unit: getUnitLabel(document.getElementById('st_type').value),
+
+        date: document.getElementById('main_date_picker').value
+    });
+
+    showToast("Stock Saved!");
+
+    window.refreshAll();
+}
     /*await db.stock.add({
         name: document.getElementById('st_name').value.trim(),
         action: document.getElementById('st_action').value,
@@ -339,23 +435,71 @@ async function saveStock() {
 
 // --- 6. PDF & LOGS ---
 async function viewDayLog() {
+
     const d = document.getElementById('main_date_picker').value;
+
     const hulling = await db.hulling.where('date').equals(d).toArray();
+
     const stock = await db.stock.where('date').equals(d).toArray();
+
     let html = "";
-    
-    [...hulling.map(v => ({...v, table: 'hulling'})), 
-     ...stock.map(v => ({...v, table: 'stock'}))].forEach(x => {
+
+    [
+        ...hulling.map(v => ({ ...v, table: 'hulling' })),
+        ...stock.map(v => ({ ...v, table: 'stock' }))
+    ].forEach(x => {
+
+        let qtyText = "";
+
+        if (x.table === 'hulling') {
+
+            qtyText = `${x.weight} Q`;
+        }
+
+        else {
+
+            const unit = x.unit || "Qty";
+
+            if (x.bags && x.bagWeight) {
+
+                qtyText =
+                    `${x.bags} Bags × ${x.bagWeight}KG`;
+            }
+
+            else {
+
+                qtyText =
+                    `${x.weight} ${unit}`;
+            }
+        }
+
         html += `
-        <div class="log-card" style="border-left: 6px solid ${x.table === 'hulling' ? '#673ab7' : '#ff9800'}">
-            <div><b>${x.name}</b><br><small>${x.weight} Q | ₹${x.total || x.amount}</small></div>
-            <div class="log-actions">
-                <button class="btn-sm" onclick="generateBillPDF('${x.id}', '${x.table}')">PDF</button>
-                <button class="btn-sm" style="background:red; color:white;" onclick="deleteEntry('${x.id}', '${x.table}')">Del</button>
+        <div class="log-card"
+             style="border-left: 6px solid ${x.table === 'hulling' ? '#673ab7' : '#ff9800'}">
+
+            <div>
+                <b>${x.name}</b><br>
+                <small>${qtyText} | ₹${x.total || x.amount}</small>
             </div>
+
+            <div class="log-actions">
+                <button class="btn-sm"
+                    onclick="generateBillPDF('${x.id}', '${x.table}')">
+                    PDF
+                </button>
+
+                <button class="btn-sm"
+                    style="background:red; color:white;"
+                    onclick="deleteEntry('${x.id}', '${x.table}')">
+                    Del
+                </button>
+            </div>
+
         </div>`;
     });
-    document.getElementById('day_log').innerHTML = html || "No records.";
+
+    document.getElementById('day_log').innerHTML =
+        html || "No records.";
 }
 
 async function generateBillPDF(id, table) {
@@ -444,30 +588,45 @@ async function generateBillPDF(id, table) {
 
     else if (table === 'stock') {
 
-        const weight = parseFloat(data.weight) || 0;
+    const weight = parseFloat(data.weight) || 0;
 
-        const amount = parseFloat(data.amount) || 0;
+    const amount = parseFloat(data.amount) || 0;
 
-        // For old records where rate was not saved
-        let rate = parseFloat(data.rate);
+    const bags = parseFloat(data.bags) || 0;
 
-        if (!rate || rate === 0) {
+    const bagWeight = parseFloat(data.bagWeight) || 0;
 
-            // Recover rate from amount / weight
-            rate = weight > 0 ? amount / weight : 0;
-        }
+    const unit = data.unit || "Qty";
 
-        rows = [[
+    let rate = parseFloat(data.rate) || 0;
 
-            data.type || "-",
+    let qtyDisplay = "";
 
-            weight.toFixed(2) + " Q",
+    // BAG MODE
+    if (bags > 0 && bagWeight > 0) {
 
-            "Rs. " + rate.toFixed(2),
-
-            "Rs. " + amount.toFixed(2)
-        ]];
+        qtyDisplay =
+            `${bags} Bags × ${bagWeight}KG`;
     }
+
+    // NORMAL MODE
+    else {
+
+        qtyDisplay =
+            `${weight.toFixed(2)} ${unit}`;
+    }
+
+    rows = [[
+
+        data.type || "-",
+
+        qtyDisplay,
+
+        "Rs. " + rate.toFixed(2),
+
+        "Rs. " + amount.toFixed(2)
+    ]];
+}
 
     // ---------------- TABLE ----------------
 

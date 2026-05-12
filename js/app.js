@@ -392,7 +392,7 @@ async function generateBillPDF(id, table) {
     );
 
     doc.text(
-        "Sullalli, 577453 | Date: " + data.date,
+        "Sullalli, 577453 | Date: " + (data.date || "-"),
         105,
         32,
         { align: "center" }
@@ -414,35 +414,58 @@ async function generateBillPDF(id, table) {
 
     let rows = [];
 
-    // ===== HULLING PDF =====
+    // =================================================
+    // HULLING PDF
+    // =================================================
 
     if (table === 'hulling') {
+
+        const weight = parseFloat(data.weight) || 0;
+
+        const rate = parseFloat(data.rate) || 0;
+
+        const total = parseFloat(data.total) || 0;
 
         rows = [[
 
             "Hulling Service",
 
-            (parseFloat(data.weight) || 0).toFixed(2) + " Q",
+            weight.toFixed(2) + " Q",
 
-            "Rs. " + ((parseFloat(data.rate) || 0).toFixed(2)),
+            "Rs. " + rate.toFixed(2),
 
-            "Rs. " + ((parseFloat(data.total) || 0).toFixed(2))
+            "Rs. " + total.toFixed(2)
         ]];
     }
 
-    // ===== STOCK PDF =====
+    // =================================================
+    // STOCK PDF
+    // =================================================
 
     else if (table === 'stock') {
+
+        const weight = parseFloat(data.weight) || 0;
+
+        const amount = parseFloat(data.amount) || 0;
+
+        // For old records where rate was not saved
+        let rate = parseFloat(data.rate);
+
+        if (!rate || rate === 0) {
+
+            // Recover rate from amount / weight
+            rate = weight > 0 ? amount / weight : 0;
+        }
 
         rows = [[
 
             data.type || "-",
 
-            (parseFloat(data.weight) || 0).toFixed(2) + " Q",
+            weight.toFixed(2) + " Q",
 
-            "Rs. " + ((parseFloat(data.rate) || 0).toFixed(2)),
+            "Rs. " + rate.toFixed(2),
 
-            "Rs. " + ((parseFloat(data.amount) || 0).toFixed(2))
+            "Rs. " + amount.toFixed(2)
         ]];
     }
 
@@ -453,6 +476,7 @@ async function generateBillPDF(id, table) {
         startY: 55,
 
         head: [[
+
             table === 'hulling'
                 ? 'Service'
                 : 'Stock Type',
@@ -486,7 +510,7 @@ async function generateBillPDF(id, table) {
 
     // ---------------- SAVE PDF ----------------
 
-    doc.save(`${data.name}_${table}_Bill.pdf`);
+    doc.save(`${data.name || "Bill"}_${table}.pdf`);
 }
 
 async function deleteEntry(id, table) {

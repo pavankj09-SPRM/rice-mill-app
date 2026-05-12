@@ -586,7 +586,7 @@ async function generateBillPDF(id, table) {
     // STOCK PDF
     // =================================================
 
-    else if (table === 'stock') {
+else if (table === 'stock') {
 
     const weight = parseFloat(data.weight) || 0;
 
@@ -605,15 +605,13 @@ async function generateBillPDF(id, table) {
     // BAG MODE
     if (bags > 0 && bagWeight > 0) {
 
-        qtyDisplay =
-            `${bags} Bags × ${bagWeight}KG`;
+        qtyDisplay = `${bags} Bags × ${bagWeight}KG`;
     }
 
     // NORMAL MODE
     else {
 
-        qtyDisplay =
-            `${weight.toFixed(2)} ${unit}`;
+        qtyDisplay = `${weight.toFixed(2)} ${unit}`;
     }
 
     rows = [[

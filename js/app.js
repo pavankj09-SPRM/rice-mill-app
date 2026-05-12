@@ -586,45 +586,47 @@ async function generateBillPDF(id, table) {
     // STOCK PDF
     // =================================================
 
-else if (table === 'stock') {
+    else if (table === 'stock') {
 
-    const weight = parseFloat(data.weight) || 0;
+        const weight = parseFloat(data.weight) || 0;
 
-    const amount = parseFloat(data.amount) || 0;
+        const amount = parseFloat(data.amount) || 0;
 
-    const bags = parseFloat(data.bags) || 0;
+        const bags = parseFloat(data.bags) || 0;
 
-    const bagWeight = parseFloat(data.bagWeight) || 0;
+        const bagWeight = parseFloat(data.bagWeight) || 0;
 
-    const unit = data.unit || "Qty";
+        const unit = data.unit || "Qty";
 
-    let rate = parseFloat(data.rate) || 0;
+        const rate = parseFloat(data.rate) || 0;
 
-    let qtyDisplay = "";
+        let qtyDisplay = "";
 
-    // BAG MODE
-    if (bags > 0 && bagWeight > 0) {
+        // BAG MODE
+        if (bags > 0 && bagWeight > 0) {
 
-        qtyDisplay = `${bags} Bags × ${bagWeight}KG`;
+            qtyDisplay =
+                `${bags} Bags × ${bagWeight}KG`;
+        }
+
+        // NORMAL MODE
+        else {
+
+            qtyDisplay =
+                `${weight.toFixed(2)} ${unit}`;
+        }
+
+        rows = [[
+
+            data.type || "-",
+
+            qtyDisplay,
+
+            "Rs. " + rate.toFixed(2),
+
+            "Rs. " + amount.toFixed(2)
+        ]];
     }
-
-    // NORMAL MODE
-    else {
-
-        qtyDisplay = `${weight.toFixed(2)} ${unit}`;
-    }
-
-    rows = [[
-
-        data.type || "-",
-
-        qtyDisplay,
-
-        "Rs. " + rate.toFixed(2),
-
-        "Rs. " + amount.toFixed(2)
-    ]];
-}
 
     // ---------------- TABLE ----------------
 
@@ -638,7 +640,7 @@ else if (table === 'stock') {
                 ? 'Service'
                 : 'Stock Type',
 
-            'Weight',
+            'Quantity',
 
             'Rate',
 

@@ -365,15 +365,20 @@ async function generateBillPDF(id, table) {
     doc.setFontSize(20);
     doc.text("SHRI PARSHWANATHA RICE MILL", 105, 20, { align: "center" });
     doc.setFontSize(10);
-    doc.text("Proprietor: Jwalaprasad K J | Phone: [Your Phone]", 105, 27, { align: "center" });
+    doc.text("Proprietor: Jwalaprasad K J | Phone: [+91 9482364402, +91 8861080602]", 105, 27, { align: "center" });
     doc.text("Sagara, Shimoga | Date: " + data.date, 105, 32, { align: "center" });
     doc.line(20, 35, 190, 35);
 
     const rows = [[
-        table === 'hulling' ? "Hulling Service" : data.type,
-        data.weight + " Q",
-        "₹" + (data.rate || "-"),
-        "₹" + (data.total || data.amount)
+    table === 'hulling' ? "Hulling Service" : data.type,
+
+        (parseFloat(data.weight) || 0).toFixed(2) + " Q",
+
+        table === 'hulling'
+                ? "Rs. " + ((parseFloat(data.rate) || 0).toFixed(2))
+                : "-",
+
+                "Rs. " + ((parseFloat(data.total || data.amount) || 0).toFixed(2))
     ]];
 
     doc.autoTable({

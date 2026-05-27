@@ -483,4 +483,217 @@ async function saveExpense() {
     });
 
     showToast("Expense Recorded Successfully!");
-    document.getElementById('exp_name').
+    document.getElementById('exp_name').value = "";
+    document.getElementById('exp_amount').value = "";
+    if (document.getElementById('exp_labor_rate')) document.getElementById('exp_labor_rate').value = "";
+    
+    window.refreshAll();
+}
+
+async function viewDayLog() {
+    const d = document.getElementById('main_date_picker').value;
+    const hulling = await db.hulling.where('date').equals(d).toArray();
+    const stock = await db.stock.where('date').equals(d).toArray();
+    let expenses = [];
+    if (db.expenses) expenses = await db.expenses.where('date').equals(d).toArray();
+    
+    let html = "";
+
+    const combinedLogs = [
+        ...hulling.map(v => ({ ...v, table: 'hulling' })),
+        ...stock.map(v => ({ ...v, table: 'stock' })),
+        ...expenses.map(v => ({ ...v, table: 'expenses' }))
+    ];
+
+    combinedLogs.forEach(x => {
+        let isLabor = x.table === 'expenses' && (x.category === 'Wages' || (x.name || "").toLowerCase().includes("labor"));
+        let typeLabel = x.table === 'hulling' ? 'Hulling Service' : (x.table === 'expenses' ? `Expense: ${x.category}` : x.type);
+        let qtyText = x.table === 'hulling' ? `${x.weight} Q` : (x.table === 'expenses' ? 'Financial Outflow' : `${x.weight} ${x.unit || 'KG'}`);
+        
+        if (isLabor && x.name.includes("Payout:")) {
+            qtyText = "Calculated Wage Payment";
+        }
+
+        let borderColors = '#ff9800';
+        if (x.table === 'hulling') borderColors = '#673ab7';
+        else if (x.table === 'expenses') borderColors = isLabor ? '#00b0ff' : '#d32f2f';
+
+        html += `
+        <div class="log-card" style="border-left: 6px solid ${borderColors}; padding:10px; margin-bottom:8px; display:flex; justify-content:space-between; background:#fff; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.05); align-items:center;">
+            <div><b>${x.name || 'Counter Transaction'}</b> (${typeLabel})<br><small>${qtyText} | Total: ₹${x.total || x.amount}</small></div>
+            <div style="display:flex; gap:5px;">
+                <button class="btn-sm" style="padding:4px 8px; cursor:pointer;" onclick="generateBillPDF('${x.id}', '${x.table}')">PDF</button>
+                <button class="btn-sm" style="background:#c62828; color:#fff; border:none; border-radius:3px; padding:4px 8px; cursor:pointer;" onclick="deleteEntry('${x.id}', '${x.table}')">Del</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById('day_log').innerHTML = html || "No records logged for today.";
+}
+
+async function generateBillPDF(id, table) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const data = await db[table].get(Number(id));
+    if (!data) return alert("Record fetch missing.");
+
+    doc.setFontSize(18);
+    doc.text("SHRI PARSHWANATHA RICE MILL", 105, 15, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("Proprietor: Jwalaprasad K J | Sullalli, Shimoga", 105, 22, { align: "center" });
+    doc.text("Date: " + data.date, 105, 27, { align: "center" });
+    doc.line(20, 30, 190, 30);
+    
+    let descriptiveTitle = data.name || "Walk-in Transaction";
+    doc.text("Account Name Reference: " + descriptiveTitle, 20, 38);
+
+    let rows = [];
+    if (table === 'hulling') {
+        rows.push(["Hulling Production Fee", `${data.weight} Q`, `Rs. ${data.rate}`, `Rs. ${data.total}`]);
+    } else if (table === 'expenses') {
+        rows.push([`Expense entry (${data.category})`, "N/A", "Ledger Outflow", `Rs. ${data.amount}`]);
+    } else {
+        rows.push([data.type, data.bags ? `${data.bags} Bags x ${data.bagWeight}kg` : `${data.weight} ${data.unit}`, `Rs. ${data.rate}`, `Rs. ${data.amount}`]);
+    }
+
+    doc.autoTable({
+        startY: 45,
+        head: [['Item Specifications', 'Calculated Weight', 'Unit Rate Base', 'Net Amount']],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [81, 45, 168] }
+    });
+
+    doc.save(`${data.name || 'Receipt'}_Statement.pdf`);
+}
+
+// --- 9. FIXED EXPORT ENGINE PIPELINES ---
+async function exportDailyPDF() {
+    const targetDate = document.getElementById('main_date_picker').value;
+    const hulling = await db.hulling.where('date').equals(targetDate).toArray();
+    const stock = await db.stock.where('date').equals(targetDate).toArray();
+    let expenses = [];
+    if (db.expenses) expenses = await db.expenses.where('date').equals(targetDate).toArray();
+    
+    if (hulling.length === 0 && stock.length === 0 && expenses.length === 0) {
+        return alert("No data logs recorded to export for this date.");
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("DAILY TRANSACTION SUMMARY REPORT", 105, 15, { align: "center" });
+    doc.setFontSize(11);
+    doc.text(`Shri Parshwanatha Rice Mill | Statement Date: ${targetDate}`, 105, 22, { align: "center" });
+    doc.line(15, 26, 195, 26);
+
+    let bodyRows = [];
+    hulling.forEach(h => {
+        bodyRows.push(["Hulling Production", h.name || "-", `${h.weight} Q`, `₹${h.rate}`, `₹${h.total}`]);
+    });
+    stock.forEach(s => {
+        let qty = s.bags ? `${s.bags} Bags × ${s.bagWeight}KG` : `${s.weight} ${s.unit || 'KG'}`;
+        bodyRows.push([s.action + " - " + s.type, s.name || "-", qty, `₹${s.rate}`, `₹${s.amount}`]);
+    });
+    expenses.forEach(e => {
+        bodyRows.push([`Expense - ${e.category}`, e.name || "-", "Outflow", "-", `₹${e.amount}`]);
+    });
+
+    doc.autoTable({
+        startY: 32,
+        head: [['Transaction Category', 'Party Name', 'Quantity/Weight', 'Rate Base', 'Total Net Amount']],
+        body: bodyRows,
+        theme: 'striped',
+        headStyles: { fillColor: [46, 125, 50] }
+    });
+
+    doc.save(`Daily_Report_${targetDate}.pdf`);
+}
+
+async function exportDailyExcel() {
+    const targetDate = document.getElementById('main_date_picker').value;
+    const hulling = await db.hulling.where('date').equals(targetDate).toArray();
+    const stock = await db.stock.where('date').equals(targetDate).toArray();
+    let expenses = [];
+    if (db.expenses) expenses = await db.expenses.where('date').equals(targetDate).toArray();
+
+    if (hulling.length === 0 && stock.length === 0 && expenses.length === 0) {
+        return alert("No data logs recorded to export for this date.");
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Transaction Category,Party Name,Quantity/Weight,Rate Base,Total Net Amount\r\n";
+
+    hulling.forEach(h => {
+        csvContent += `"Hulling Production","${h.name || '-'}","${h.weight} Q","${h.rate}","${h.total}"\r\n`;
+    });
+    stock.forEach(s => {
+        let qty = s.bags ? `${s.bags} Bags x ${s.bagWeight}KG` : `${s.weight} ${s.unit || 'KG'}`;
+        csvContent += `"${s.action} - ${s.type}","${s.name || '-'}","${qty}","${s.rate}","${s.amount}"\r\n`;
+    });
+    expenses.forEach(e => {
+        csvContent += `"Expense - ${e.category}","${e.name || '-'}","Financial Outflow","-","${e.amount}"\r\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Daily_Report_${targetDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+async function deleteEntry(id, table) {
+    if (confirm("Permanently erase record?")) {
+        await db[table].delete(Number(id));
+        window.refreshAll();
+    }
+}
+
+// --- 10. BACKUP AND IMPORT PROTOCOLS ---
+async function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (confirm("WARNING: Overwrite operational records with this backup file?")) {
+                await Promise.all([db.settings.clear(), db.hulling.clear(), db.stock.clear()]);
+                if (db.expenses) await db.expenses.clear();
+
+                if (data.settings) await db.settings.bulkPut(data.settings);
+                if (data.hulling) await db.hulling.bulkPut(data.hulling);
+                if (data.stock) await db.stock.bulkPut(data.stock);
+                if (data.expenses && db.expenses) await db.expenses.bulkPut(data.expenses);
+
+                alert("Database Restored Successfully!");
+                location.reload(); 
+            }
+        } catch (err) {
+            alert("JSON Processing Crash: " + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+async function exportData() {
+    const settings = await db.settings.toArray();
+    const hulling = await db.hulling.toArray();
+    const stock = await db.stock.toArray();
+    const payload = { settings, hulling, stock };
+    if (db.expenses) payload.expenses = await db.expenses.toArray();
+
+    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Backup_Mill_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+}
+
+function showToast(text) {
+    const t = document.getElementById('toast');
+    if (t) { t.innerText = text; t.className = "show"; setTimeout(() => t.className = "", 3000); }
+}

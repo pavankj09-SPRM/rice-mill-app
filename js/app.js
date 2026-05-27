@@ -264,45 +264,46 @@ async function generateSummary() {
             if (nameKey) categoryMap[nameKey] = (s.category || "").toLowerCase().trim();
         });
 
+        // 1. Accumulate Hulling Revenue
         hullingEntries.forEach(h => { totalRevenue += parseFloat(h.total) || 0; });
 
-        );
+        // 2. Process Stock Calculations (Dynamic Fix Integrated)
+        stockEntries.forEach(item => {
+            const amt = parseFloat(item.amount) || 0;
+            const weight = parseFloat(item.weight) || 0;
+            const itemTypeRaw = (item.type || "").trim();
+            const itemTypeLower = itemTypeRaw.toLowerCase();
 
+            if (item.action === "Sale") {
+                totalRevenue += amt;
+            } else if (item.action === "Purchase") {
+                totalExpenses += amt;
+                if (itemTypeLower.includes("diesel")) costCategories.diesel += amt;
+                else if (itemTypeLower.includes("salt")) costCategories.miscellaneous += amt;
+                else costCategories.paddy_purchases += amt;
+            }
+
+            if (itemTypeRaw) {
+                if (!stockInventory[itemTypeRaw]) stockInventory[itemTypeRaw] = 0;
+                
+                // DYNAMIC FIX: Byproducts (husk/waste/processed rice) accumulate on Sale.
+                if (itemTypeLower.includes("husk") || itemTypeLower.includes("waste") || itemTypeLower.includes("rice")) {
+                    stockInventory[itemTypeRaw] += (item.action === "Sale") ? weight : -weight;
+                } else {
+                    // Standard Paddy Tracking Rules
+                    stockInventory[itemTypeRaw] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
+                }
+            }
+        });
+
+        // 3. Process Generic Operational Expenses
         expenseEntries.forEach(exp => {
             const amt = parseFloat(exp.amount) || 0;
             totalExpenses += amt;
             const expName = (exp.name || "").toLowerCase();
             const expType = (exp.type || "").toLowerCase();
 
-      stockEntries.forEach(item => {
-    const amt = parseFloat(item.amount) || 0;
-    const weight = parseFloat(item.weight) || 0;
-    const itemTypeRaw = (item.type || "").trim();
-    const itemTypeLower = itemTypeRaw.toLowerCase();
-
-    if (item.action === "Sale") {
-        totalRevenue += amt;
-    } else if (item.action === "Purchase") {
-        totalExpenses += amt;
-        if (itemTypeLower.includes("diesel")) costCategories.diesel += amt;
-        else if (itemTypeLower.includes("salt")) costCategories.miscellaneous += amt;
-        else costCategories.paddy_purchases += amt;
-    }
-
-    if (itemTypeRaw) {
-        if (!stockInventory[itemTypeRaw]) stockInventory[itemTypeRaw] = 0;
-        
-        // DYNAMIC FIX: If it's a byproduct like husk or processed sale rice, 
-        // treat the sale action as an accumulation on the dashboard instead of a deduction.
-        if (itemTypeLower.includes("husk") || itemTypeLower.includes("waste") || itemTypeLower.includes("rice")) {
-            stockInventory[itemTypeRaw] += (item.action === "Sale") ? weight : -weight;
-        } else {
-            // Standard Paddy tracking rules
-            stockInventory[itemTypeRaw] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
-        }
-    }
-});
-      if (expName.includes("labour") || expName.includes("wage") || expType.includes("labour")) costCategories.labor_wages += amt;
+            if (expName.includes("labour") || expName.includes("wage") || expType.includes("labour")) costCategories.labor_wages += amt;
             else if (expName.includes("electricity") || expName.includes("power") || expName.includes("mescom")) costCategories.electricity += amt;
             else if (expName.includes("diesel") || expType.includes("diesel")) costCategories.diesel += amt;
             else costCategories.miscellaneous += amt;
@@ -359,6 +360,7 @@ function renderExpensePieChart(costs) {
     });
 }
 
+// Balance Bar Graph Handler
 function renderStockBarChart(inventory, categoryMap) {
     const canvas = document.getElementById('stockBarChart');
     if (!canvas) return;
@@ -417,7 +419,7 @@ function renderInventoryTable(stockInventory) {
             <thead>
                 <tr style="background-color:#eff1f5; border-bottom:2px solid #cfd8dc;">
                     <th style="padding:10px;">Commodity Reference</th>
-                    <th style="padding:10px; text-align:right;">Book Balance Balance</th>
+                    <th style="padding:10px; text-align:right;">Book Balance</th>
                 </tr>
             </thead>
             <tbody>`;
@@ -491,7 +493,7 @@ async function viewDayLog() {
         html += `
         <div class="log-card" style="border-left: 6px solid ${x.table === 'hulling' ? '#673ab7' : '#ff9800'}; padding:10px; margin-bottom:8px; display:flex; justify-content:space-between; background:#fff; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div><b>${x.name}</b><br><small>${qtyText} | ₹${x.total || x.amount}</small></div>
-            <div>
+    <div>
                 <button class="btn-sm" onclick="generateBillPDF('${x.id}', '${x.table}')">PDF</button>
                 <button class="btn-sm" style="background:#c62828; color:#fff; border:none; border-radius:3px; margin-left:5px;" onclick="deleteEntry('${x.id}', '${x.table}')">Del</button>
             </div>

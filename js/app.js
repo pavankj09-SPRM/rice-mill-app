@@ -13,6 +13,9 @@ window.refreshAll = async () => {
         await viewDayLog();
         await generateSummary();
         await refreshSettingsList();
+        if (typeof toggleExpenseInputs === 'function') {
+            await toggleExpenseInputs();
+        }
     } catch (e) {
         console.error("Refresh Performance Error:", e);
     }
@@ -35,7 +38,7 @@ const switchTab = (tabId) => {
     }
     if (nav) nav.classList.add('active');
 
-    if (['dashboard-tab', 'history-tab', 'stock-tab', 'settings-tab', 'bills-tab'].includes(tabId)) {
+    if (['dashboard-tab', 'history-tab', 'stock-tab', 'settings-tab', 'expenses-tab'].includes(tabId)) {
         window.refreshAll();
     }
 };
@@ -60,10 +63,11 @@ window.onload = () => {
 
     bindAction('btn_save_hulling', saveHulling);
     bindAction('btn_save_stock', saveStock);
+    bindAction('btn_save_expense', saveExpense);
     bindAction('btn_add_variety', addNewVariety);
     bindAction('btn_backup', exportData);
     
-    // NEW: Global Export Bindings for Daily Reports
+    // Global Export Bindings for Daily Reports
     bindAction('btn_export_daily_pdf', exportDailyPDF);
     bindAction('btn_export_daily_excel', exportDailyExcel);
     
@@ -82,18 +86,10 @@ window.onload = () => {
         systemFileInput.onchange = (e) => importData(e);
     }
 
-    const stockTypeSelector = document.getElementById('st_type');
-    if (stockTypeSelector) {
-        stockTypeSelector.onchange = toggleStockInputs;
-    }
-
-    // NEW: Listen for type changes on the stock interface to reveal Labor inputs
-    const stockActionSelector = document.getElementById('st_action');
-    if (stockActionSelector) {
-        stockActionSelector.onchange = () => {
-            loadDropdowns();
-            toggleStockInputs();
-        };
+    // Listen for category changes on the Bills / Expenses page
+    const expCatSelector = document.getElementById('exp_type_cat');
+    if (expCatSelector) {
+        expCatSelector.onchange = toggleExpenseInputs;
     }
 
     setupAutoCalculations();
@@ -110,9 +106,9 @@ function setupAutoCalculations() {
 
     const runHullingCalc = () => {
         if (document.activeElement !== hTotal) {
-            const kg = (typeof Logic !== 'undefined' && Logic.processWeight) ? Logic.processWeight(hWeight.value) : (parseFloat(hWeight.value) * 100 || 0);
+            const weightVal = parseFloat(hWeight.value) || 0;
             const rate = parseFloat(hRate.value) || 0;
-            hTotal.value = Math.round((kg / 100) * rate);
+            hTotal.value = Math.round(weightVal * rate);
         }
     };
 
@@ -121,26 +117,15 @@ function setupAutoCalculations() {
         hRate.oninput = runHullingCalc;
     }
 
-    // B. Complete Inventory & Dynamic Labor Calculation Engine
+    // B. Complete Inventory Stock Calculation Engine
     const stWeight = document.getElementById('st_weight');
     const stRate = document.getElementById('st_rate');
     const stAmount = document.getElementById('st_amount');
     const stBags = document.getElementById('st_bags');
     const stBagWeight = document.getElementById('st_bag_weight');
-    const stLaborRate = document.getElementById('st_labor_rate'); // Dynamic Custom input row
 
-    const runStockCalc = async () => {
+    const runStockCalc = () => {
         if (!stWeight || !stRate || !stAmount) return;
-        const type = (document.getElementById('st_type')?.value || "").toLowerCase();
-        
-        // If user selects labor wages, process calculation via daily dynamic hulling totals
-        if (type.includes("labour") || type.includes("wage")) {
-            const laborRatePerQuintal = parseFloat(stLaborRate?.value) || 0;
-            const totalHullingQuintals = parseFloat(stWeight.value) || 0;
-            
-            stAmount.value = Math.round(totalHullingQuintals * laborRatePerQuintal);
-            return;
-        }
 
         const bags = parseFloat(stBags?.value) || 0;
         const bagWeight = parseFloat(stBagWeight?.value) || 0;
@@ -166,77 +151,61 @@ function setupAutoCalculations() {
         stBags.oninput = runStockCalc;
         stBagWeight.oninput = runStockCalc;
     }
-    if (stLaborRate) {
-        stLaborRate.oninput = runStockCalc;
+
+    // C. DYNAMIC LABOUR WAGE CALCULATOR FOR BILLS PAGE
+    const expLaborWeight = document.getElementById('exp_labor_weight');
+    const expLaborRate = document.getElementById('exp_labor_rate');
+    const expAmount = document.getElementById('exp_amount');
+
+    if (expLaborWeight && expLaborRate && expAmount) {
+        const runExpenseLaborCalc = () => {
+            const weight = parseFloat(expLaborWeight.value) || 0;
+            const rate = parseFloat(expLaborRate.value) || 0;
+            expAmount.value = Math.round(weight * rate);
+        };
+        expLaborRate.oninput = runExpenseLaborCalc;
+    }
+}
+
+// DYNAMIC UI FIELD MANAGEMENT FOR EXPENSES / LABOUR WAGES
+async function toggleExpenseInputs() {
+    const category = document.getElementById('exp_type_cat')?.value;
+    const laborCalcRow = document.getElementById('row_bill_labor_calc');
+    const expAmountField = document.getElementById('exp_amount');
+    const expWeightField = document.getElementById('exp_labor_weight');
+
+    if (!laborCalcRow || !expAmountField) return;
+
+    if (category === "Wages") {
+        // Show labor calculation parameters, lock total field for calculations
+        laborCalcRow.style.display = "block";
+        expAmountField.readOnly = true;
+
+        // Fetch selected day's total hulling capacity instantly
+        const selectedDate = document.getElementById('main_date_picker').value;
+        const currentDayHulling = await db.hulling.where('date').equals(selectedDate).toArray();
+        const totalHullingWeight = currentDayHulling.reduce((sum, h) => sum + (parseFloat(h.weight) || 0), 0);
+        
+        if (expWeightField) {
+            expWeightField.value = totalHullingWeight;
+        }
+    } else {
+        // Hide labor fields for normal operational bills
+        laborCalcRow.style.display = "none";
+        expAmountField.readOnly = false;
     }
 }
 
 function getUnitLabel(type = "") {
     type = type.toLowerCase();
-    if (type.includes("labour") || type.includes("wage")) return "Q";
-    if (type.includes("white-new") || type.includes("white-old") || type.includes("red-new") || type.includes("red-old")) return "Q";
+    if (type.includes("white") || type.includes("red")) return "Q";
     if (type.includes("husk")) return "KG";
     if (type.includes("diesel")) return "Ltr";
     if (type.includes("salt")) return "Bag";
-    if (type.includes("empty bag") || type.includes("bag 25") || type.includes("bag 50")) return "Nos";
+    if (type.includes("empty bag")) return "Nos";
     return "KG";
 }
 
-// DYNAMIC UI FIELD MANAGEMENT FOR LABOUR WAGES
-async function toggleStockInputs() {
-    const action = document.getElementById('st_action').value;
-    const type = (document.getElementById('st_type')?.value || "").toLowerCase();
-    
-    const weightField = document.getElementById('st_weight');
-    const bagsField = document.getElementById('st_bags');
-    const bagWeightField = document.getElementById('st_bag_weight');
-    
-    // UI Elements for Labor Row
-    const laborRateRow = document.getElementById('row_labor_rate_per_quintal'); 
-    const baseRateRow = document.getElementById('row_base_rate'); 
-
-    if (!weightField) return;
-
-    // Reset layout visibility defaults
-    if (bagsField) bagsField.style.display = "none";
-    if (bagWeightField) bagWeightField.style.display = "none";
-    if (laborRateRow) laborRateRow.style.display = "none";
-    if (baseRateRow) baseRateRow.style.display = "block";
-
-    // Triggered Check: If chosen option is Labour Wages
-    if (type.includes("labour") || type.includes("wage")) {
-        if (laborRateRow) laborRateRow.style.display = "block";
-        if (baseRateRow) baseRateRow.style.display = "none"; // Replace static rate field
-        weightField.style.display = "block";
-        weightField.readOnly = true; // Auto-locked because value comes from daily totals
-
-        // Fetch target day total hulling capacity and dump straight into input
-        const selectedDate = document.getElementById('main_date_picker').value;
-        const currentDayHulling = await db.hulling.where('date').equals(selectedDate).toArray();
-        const totalHullingWeight = currentDayHulling.reduce((sum, h) => sum + (parseFloat(h.weight) || 0), 0);
-        
-        weightField.value = totalHullingWeight;
-        return;
-    }
-
-    // Default configuration paths
-    weightField.readOnly = false;
-    if (action === "Purchase") {
-        weightField.style.display = "block";
-    } else if (action === "Sale") {
-        if (type.includes("salt") || type.includes("empty bag") || type.includes("diesel") || type.includes("husk")) {
-            weightField.style.display = "block";
-        } else {
-            if (weightField) weightField.style.display = "none";
-            if (bagsField) bagsField.style.display = "block";
-            if (bagWeightField) bagWeightField.style.display = "block";
-        }
-    } else {
-        weightField.style.display = "block";
-    }
-}
-
-// --- 6. SMART CONFIGURATIONS MANAGEMENT ---
 async function loadDropdowns() {
     const action = document.getElementById('st_action').value;
     const allSettings = await db.settings.toArray();
@@ -247,23 +216,15 @@ async function loadDropdowns() {
     allSettings.forEach(item => {
         const itemName = item.fullName || item.name;
         if (action === "Purchase" && item.category === "paddy") {
-            ["White-New", "White-Old", "Red-New", "Red-Old"].forEach(t => {
+            ["New", "Old"].forEach(t => {
                 stockSelect.add(new Option(`🌾 ${itemName} (${t})`, `${itemName} (${t})`));
             });
         } else if (action === "Sale" && item.category === "rice") {
             stockSelect.add(new Option(`🍚 ${itemName}`, itemName));
-        } else if (action === "Misc" && (item.category === "misc" || item.category === "labor" || item.category === "expenses")) {
+        } else if (action === "Misc" && item.category === "misc") {
             stockSelect.add(new Option(`📦 ${itemName}`, itemName));
         }
     });
-
-    // Append fallback systemic options explicitly if missing from configurations
-    if (action === "Misc") {
-        stockSelect.add(new Option("👷 Labour Wages", "Labour Wages"));
-    }
-
-    stockSelect.onchange = toggleStockInputs;
-    toggleStockInputs();
 }
 
 async function refreshSettingsList() {
@@ -297,7 +258,7 @@ async function deleteVariety(id) {
     }
 }
 
-// --- 7. FILE STORAGE AND ACCOUNT METRICS CALCULATOR ---
+// --- 6. METRICS ACCOUNT BALANCES CALCULATOR ---
 async function generateSummary() {
     try {
         const stockEntries = await db.stock.toArray();
@@ -328,22 +289,17 @@ async function generateSummary() {
 
             if (item.action === "Sale") {
                 totalRevenue += amt;
-            } else if (item.action === "Purchase" || item.action === "Misc") {
+            } else if (item.action === "Purchase") {
                 totalExpenses += amt;
-                
-                if (itemTypeLower.includes("diesel")) costCategories.diesel += amt;
-                else if (itemTypeLower.includes("salt")) costCategories.miscellaneous += amt;
-                else if (itemTypeLower.includes("labour") || itemTypeLower.includes("wage")) costCategories.labor_wages += amt;
-                else costCategories.paddy_purchases += amt;
+                costCategories.paddy_purchases += amt;
             }
 
-            if (itemTypeRaw && !itemTypeLower.includes("labour") && !itemTypeLower.includes("wage")) {
+            if (itemTypeRaw) {
                 if (!stockInventory[itemTypeRaw]) stockInventory[itemTypeRaw] = 0;
-                
                 if (itemTypeLower.includes("husk") || itemTypeLower.includes("waste") || itemTypeLower.includes("rice")) {
                     stockInventory[itemTypeRaw] += (item.action === "Sale") ? weight : -weight;
                 } else {
-                    stockInventory[itemTypeRaw] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
+                    stockInventory[itemTypeRaw] += (item.action === "Purchase") ? weight : -weight;
                 }
             }
         });
@@ -351,12 +307,12 @@ async function generateSummary() {
         expenseEntries.forEach(exp => {
             const amt = parseFloat(exp.amount) || 0;
             totalExpenses += amt;
+            const expCat = (exp.category || "").toLowerCase();
             const expName = (exp.name || "").toLowerCase();
-            const expType = (exp.type || "").toLowerCase();
 
-            if (expName.includes("labour") || expName.includes("wage") || expType.includes("labour")) costCategories.labor_wages += amt;
+            if (expCat === "wages" || expName.includes("labour") || expName.includes("wage")) costCategories.labor_wages += amt;
             else if (expName.includes("electricity") || expName.includes("power") || expName.includes("mescom")) costCategories.electricity += amt;
-            else if (expName.includes("diesel") || expType.includes("diesel")) costCategories.diesel += amt;
+            else if (expCat === "fuel" || expName.includes("diesel")) costCategories.diesel += amt;
             else costCategories.miscellaneous += amt;
         });
 
@@ -372,28 +328,27 @@ async function generateSummary() {
 
         renderExpensePieChart(costCategories);
         renderStockBarChart(stockInventory, categoryMap);
-        renderInventoryTable(stockInventory);
+        
+        // Render to both structural summary hooks present across views
+        if(document.getElementById('summary_display')) renderInventoryTable(stockInventory, 'summary_display');
+        if(document.getElementById('summary_display_history')) renderInventoryTable(stockInventory, 'summary_display_history');
 
     } catch (err) {
         console.error("Summary Matrix Computation Failure:", err);
     }
 }
 
-// --- 8. ANTI-GLITCH CHART RENDERING FLOWS ---
+// --- 7. ANTI-GLITCH CHART RENDERING FLOWS ---
 function renderExpensePieChart(costs) {
     const canvas = document.getElementById('expenseChart');
     if (!canvas) return;
-
-    if (expenseChartInstance) {
-        expenseChartInstance.destroy();
-        expenseChartInstance = null;
-    }
+    if (expenseChartInstance) { expenseChartInstance.destroy(); expenseChartInstance = null; }
 
     const ctx = canvas.getContext('2d');
     expenseChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Paddy Material', 'Labour Wages', 'Electricity', 'Diesel Fuel', 'Other Outlays'],
+            labels: ['Paddy Purchases', 'Labour Wages', 'Electricity', 'Diesel Fuel', 'Other Outlays'],
             datasets: [{
                 data: [costs.paddy_purchases, costs.labor_wages, costs.electricity, costs.diesel, costs.miscellaneous],
                 backgroundColor: ['#512da8', '#f57c00', '#0288d1', '#d81b60', '#78909c'],
@@ -401,40 +356,23 @@ function renderExpensePieChart(costs) {
                 borderWidth: 2
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } }
-            }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
     });
 }
 
 function renderStockBarChart(inventory, categoryMap) {
     const canvas = document.getElementById('stockBarChart');
     if (!canvas) return;
-
-    if (stockChartInstance) {
-        stockChartInstance.destroy();
-        stockChartInstance = null;
-    }
+    if (stockChartInstance) { stockChartInstance.destroy(); stockChartInstance = null; }
 
     const labels = Object.keys(inventory);
     const dataValues = Object.values(inventory);
-
-    if (labels.length === 0) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        return;
-    }
+    if (labels.length === 0) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
 
     const backgroundColors = labels.map(label => {
         const lowerLabel = label.toLowerCase();
         let cat = "paddy";
-        for (const [key, val] of Object.entries(categoryMap)) {
-            if (lowerLabel.includes(key)) { cat = val; break; }
-        }
+        for (const [key, val] of Object.entries(categoryMap)) { if (lowerLabel.includes(key)) { cat = val; break; } }
         if (cat === "rice" || lowerLabel.includes("rice")) return '#2e7d32';
         if (lowerLabel.includes("husk") || lowerLabel.includes("waste")) return '#b0bec5';
         return '#ffb300';
@@ -443,25 +381,18 @@ function renderStockBarChart(inventory, categoryMap) {
     const ctx = canvas.getContext('2d');
     stockChartInstance = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{ label: 'Stock Balance', data: dataValues, backgroundColor: backgroundColors, borderRadius: 4 }]
-        },
+        data: { labels: labels, datasets: [{ label: 'Stock Balance', data: dataValues, backgroundColor: backgroundColors, borderRadius: 4 }] },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            devicePixelRatio: window.devicePixelRatio || 1,
-            scales: {
-                y: { beginAtZero: true, grid: { color: '#eceff1' } },
-                x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, autoSkip: false, font: { size: 9 } } }
-            },
+            scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 45, minRotation: 45, font: { size: 9 } } } },
             plugins: { legend: { display: false } }
         }
     });
 }
 
-function renderInventoryTable(stockInventory) {
-    const target = document.getElementById('summary_display');
+function renderInventoryTable(stockInventory, elementId) {
+    const target = document.getElementById(elementId);
     if (!target) return;
 
     let html = `
@@ -476,7 +407,7 @@ function renderInventoryTable(stockInventory) {
 
     const keys = Object.keys(stockInventory);
     if (keys.length === 0) {
-        html += `<tr><td colspan="2" style="text-align:center; padding:15px; color:#999;">No logged warehouse adjustments found.</td></tr>`;
+        html += `<tr><td colspan="2" style="text-align:center; padding:15px; color:#999;">No warehouse logs found.</td></tr>`;
     } else {
         keys.forEach((k, idx) => {
             const unit = (k.toLowerCase().includes("husk") || k.toLowerCase().includes("rice")) ? "KG" : "Q";
@@ -492,7 +423,7 @@ function renderInventoryTable(stockInventory) {
     target.innerHTML = html + `</tbody></table>`;
 }
 
-// --- 9. DATA ACTIONS ENGINE ---
+// --- 8. DATA LEGER WRITING WORKFLOW MANAGEMENT ---
 async function saveHulling() {
     await db.hulling.add({
         name: document.getElementById('h_name').value.trim(),
@@ -503,217 +434,53 @@ async function saveHulling() {
         date: document.getElementById('main_date_picker').value
     });
     showToast("Hulling Record Logged!");
+    document.getElementById('h_name').value = "";
+    document.getElementById('h_weight').value = "";
+    document.getElementById('h_total_input').value = "";
     window.refreshAll();
 }
 
 async function saveStock() {
-    const bags = parseFloat(document.getElementById('st_bags')?.value) || 0;
-    const bagWeight = parseFloat(document.getElementById('st_bag_weight')?.value) || 0;
-    const totalWeight = parseFloat(document.getElementById('st_weight').value) || 0;
     const itemType = document.getElementById('st_type').value;
-    const isLabor = itemType.toLowerCase().includes("labour") || itemType.toLowerCase().includes("wage");
-    
-    const inputRate = isLabor ? 
-        parseFloat(document.getElementById('st_labor_rate').value) || 0 : 
-        parseFloat(document.getElementById('st_rate').value) || 0;
-
     await db.stock.add({
         name: document.getElementById('st_name').value.trim(),
         action: document.getElementById('st_action').value,
         type: itemType,
-        weight: totalWeight,
-        bags: bags,
-        bagWeight: bagWeight,
-        rate: inputRate,
+        weight: parseFloat(document.getElementById('st_weight').value) || 0,
+        bags: parseFloat(document.getElementById('st_bags').value) || 0,
+        bagWeight: parseFloat(document.getElementById('st_bag_weight').value) || 0,
+        rate: parseFloat(document.getElementById('st_rate').value) || 0,
         amount: parseFloat(document.getElementById('st_amount').value) || 0,
         unit: getUnitLabel(itemType),
         date: document.getElementById('main_date_picker').value
     });
-
-    showToast("Stock/Wages Entry Saved!");
-    
-    // Clear dynamic labor fields if active
-    const stLaborRate = document.getElementById('st_labor_rate');
-    if (stLaborRate) stLaborRate.value = "";
-
+    showToast("Stock Entry Saved!");
+    document.getElementById('st_name').value = "";
+    document.getElementById('st_weight').value = "";
+    document.getElementById('st_bags').value = "";
+    document.getElementById('st_bag_weight').value = "";
+    document.getElementById('st_rate').value = "";
+    document.getElementById('st_amount').value = "";
     window.refreshAll();
 }
 
-async function viewDayLog() {
-    const d = document.getElementById('main_date_picker').value;
-    const hulling = await db.hulling.where('date').equals(d).toArray();
-    const stock = await db.stock.where('date').equals(d).toArray();
-    let html = "";
-
-    [
-        ...hulling.map(v => ({ ...v, table: 'hulling' })),
-        ...stock.map(v => ({ ...v, table: 'stock' }))
-    ].forEach(x => {
-        let isLabor = (x.type || "").toLowerCase().includes("labour") || (x.type || "").toLowerCase().includes("wage");
-        let typeLabel = x.table === 'hulling' ? 'Hulling Service' : x.type;
-        let qtyText = x.table === 'hulling' ? `${x.weight} Q` : (x.bags ? `${x.bags} Bags × ${x.bagWeight}KG` : `${x.weight} ${x.unit || 'KG'}`);
-        
-        if (isLabor) qtyText = `Total Hulling base: ${x.weight} Q`;
-
-        html += `
-        <div class="log-card" style="border-left: 6px solid ${x.table === 'hulling' ? '#673ab7' : (isLabor ? '#00b0ff' : '#ff9800')}; padding:10px; margin-bottom:8px; display:flex; justify-content:space-between; background:#fff; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-            <div><b>${x.name || 'Counter Transaction'}</b> (${typeLabel})<br><small>${qtyText} | Rate: ₹${x.rate} | Total: ₹${x.total || x.amount}</small></div>
-            <div>
-                <button class="btn-sm" onclick="generateBillPDF('${x.id}', '${x.table}')">PDF</button>
-                <button class="btn-sm" style="background:#c62828; color:#fff; border:none; border-radius:3px; margin-left:5px;" onclick="deleteEntry('${x.id}', '${x.table}')">Del</button>
-            </div>
-        </div>`;
-    });
-    document.getElementById('day_log').innerHTML = html || "No records logged for today.";
-}
-
-async function generateBillPDF(id, table) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const data = await db[table].get(Number(id));
-    if (!data) return alert("Record fetch missing.");
-
-    doc.setFontSize(18);
-    doc.text("SHRI PARSHWANATHA RICE MILL", 105, 15, { align: "center" });
-    doc.setFontSize(10);
-    doc.text("Proprietor: Jwalaprasad K J | Sullalli, Shimoga", 105, 22, { align: "center" });
-    doc.text("Date: " + data.date, 105, 27, { align: "center" });
-    doc.line(20, 30, 190, 30);
-    doc.text("Account Name Reference: " + (data.name || "Walk-in"), 20, 38);
-
-    let rows = table === 'hulling' ? 
-        [["Hulling Production Fee", `${data.weight} Q`, `Rs. ${data.rate}`, `Rs. ${data.total}`]] :
-        [[data.type, data.bags ? `${data.bags} Bags × ${data.bagWeight}kg` : `${data.weight} ${data.unit}`, `Rs. ${data.rate}`, `Rs. ${data.amount}`]];
-
-    doc.autoTable({
-        startY: 45,
-        head: [['Item Specifications', 'Calculated Weight', 'Unit Rate Base', 'Net Amount']],
-        body: rows,
-        theme: 'grid',
-        headStyles: { fillColor: [81, 45, 168] }
-    });
-
-    doc.save(`${data.name || 'Receipt'}_Statement.pdf`);
-}
-
-// --- NEW FEATURE: CONSOLIDATED DAILY EXPORT HANDLERS ---
-async function exportDailyPDF() {
-    const targetDate = document.getElementById('main_date_picker').value;
-    const hulling = await db.hulling.where('date').equals(targetDate).toArray();
-    const stock = await db.stock.where('date').equals(targetDate).toArray();
+async function saveExpense() {
+    const category = document.getElementById('exp_type_cat').value;
+    const amount = parseFloat(document.getElementById('exp_amount').value) || 0;
+    let details = document.getElementById('exp_name').value.trim();
     
-    if (hulling.length === 0 && stock.length === 0) {
-        return alert("No data logs recorded to export for this date.");
+    if (category === "Wages") {
+        const rate = document.getElementById('exp_labor_rate').value || 0;
+        const weight = document.getElementById('exp_labor_weight').value || 0;
+        details = `${details} (Labor Payout: ${weight}Q @ ₹${rate}/Q)`.trim();
     }
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-
-    doc.setFontSize(16);
-    doc.text("DAILY TRANSACTION SUMMARY REPORT", 105, 15, { align: "center" });
-    doc.setFontSize(11);
-    doc.text(`Shri Parshwanatha Rice Mill | Statement Date: ${targetDate}`, 105, 22, { align: "center" });
-    doc.line(15, 26, 195, 26);
-
-    let bodyRows = [];
-    hulling.forEach(h => {
-        bodyRows.push(["Hulling Service", h.name || "-", `${h.weight} Q`, `₹${h.rate}`, `₹${h.total}`]);
-    });
-    stock.forEach(s => {
-        let qty = s.bags ? `${s.bags} Bags × ${s.bagWeight}KG` : `${s.weight} ${s.unit || 'KG'}`;
-        bodyRows.push([s.action + " - " + s.type, s.name || "-", qty, `₹${s.rate}`, `₹${s.amount}`]);
+    await db.expenses.add({
+        category: category,
+        name: details,
+        amount: amount,
+        date: document.getElementById('main_date_picker').value
     });
 
-    doc.autoTable({
-        startY: 32,
-        head: [['Transaction Category', 'Party Name', 'Quantity/Weight', 'Rate Base', 'Total Net Amount']],
-        body: bodyRows,
-        theme: 'striped',
-        headStyles: { fillColor: [46, 125, 50] }
-    });
-
-    doc.save(`Daily_Report_${targetDate}.pdf`);
-}
-
-async function exportDailyExcel() {
-    const targetDate = document.getElementById('main_date_picker').value;
-    const hulling = await db.hulling.where('date').equals(targetDate).toArray();
-    const stock = await db.stock.where('date').equals(targetDate).toArray();
-
-    if (hulling.length === 0 && stock.length === 0) {
-        return alert("No data logs recorded to export for this date.");
-    }
-
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Transaction Category,Party Name,Quantity/Weight,Rate Base,Total Net Amount\r\n";
-
-    hulling.forEach(h => {
-        csvContent += `"Hulling Service","${h.name || '-'}","${h.weight} Q","${h.rate}","${h.total}"\r\n`;
-    });
-    stock.forEach(s => {
-        let qty = s.bags ? `${s.bags} Bags x ${s.bagWeight}KG` : `${s.weight} ${s.unit || 'KG'}`;
-        csvContent += `"${s.action} - ${s.type}","${s.name || '-'}","${qty}","${s.rate}","${s.amount}"\r\n`;
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Daily_Report_${targetDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-async function deleteEntry(id, table) {
-    if (confirm("Permanently erase record?")) {
-        await db[table].delete(Number(id));
-        window.refreshAll();
-    }
-}
-
-// --- 10. SYSTEM DISASTER RESTORE AND BACKUP COMPONENT PROTOCOLS ---
-async function importData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (confirm("WARNING: Overwrite all operational records with this backup?")) {
-                await Promise.all([db.settings.clear(), db.hulling.clear(), db.stock.clear()]);
-                if (db.expenses) await db.expenses.clear();
-
-                if (data.settings) await db.settings.bulkPut(data.settings);
-                if (data.hulling) await db.hulling.bulkPut(data.hulling);
-                if (data.stock) await db.stock.bulkPut(data.stock);
-                if (data.expenses && db.expenses) await db.expenses.bulkPut(data.expenses);
-
-                alert("Database Restored Successfully!");
-                location.reload(); 
-            }
-        } catch (err) {
-            alert("JSON Process Crash: " + err.message);
-        }
-    };
-    reader.readAsText(file);
-}
-
-async function exportData() {
-    const settings = await db.settings.toArray();
-    const hulling = await db.hulling.toArray();
-    const stock = await db.stock.toArray();
-    const payload = { settings, hulling, stock };
-    if (db.expenses) payload.expenses = await db.expenses.toArray();
-
-    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Backup_Mill_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-}
-
-function showToast(text) {
-    const t = document.getElementById('toast');
-    if (t) { t.innerText = text; t.className = "show"; setTimeout(() => t.className = "", 3000); }
-}
+    showToast("Expense Recorded Successfully!");
+    document.getElementById('exp_name').

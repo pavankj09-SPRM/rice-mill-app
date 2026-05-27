@@ -61,13 +61,7 @@
                 <input type="number" id="st_weight" placeholder="Weight (Q.kg)">
                 <input type="number" id="st_bags" placeholder="No. of Bags">
                 <input type="number" id="st_bag_weight" placeholder="Weight Per Bag (KG)">
-                
-                <div id="row_base_rate" style="width: 100%;">
-                    <input type="number" id="st_rate" placeholder="Rate per Q">
-                </div>
-                <div id="row_labor_rate_per_quintal" style="width: 100%; display:none;">
-                    <input type="number" id="st_labor_rate" placeholder="₹ Rate Per Quintal">
-                </div>
+                <input type="number" id="st_rate" placeholder="Rate per Q">
             </div>
             <input type="number" id="st_amount" placeholder="Total Amount (₹)">
             <button id="btn_save_stock" class="bg-secondary">Save Stock Entry</button>
@@ -77,21 +71,36 @@
     <div id="expenses-tab" class="tab-content">
         <div class="card">
             <h3>Bills & Payments</h3>
-            <div class="grid-2 mb-15">
-                <button id="btn_auto_labour" class="bg-edit" style="background:#673ab7; font-size: 13px;">Auto Labours</button>
-                <button id="btn_set_elec" class="bg-secondary" style="background:#ff9800; font-size: 13px;">⚡ Electricity</button>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label>Expense Category:</label>
+                <select id="exp_type_cat" onchange="toggleExpenseInputs()">
+                    <option value="Wages">Labour Wages</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Fuel">Diesel/Fuel</option>
+                    <option value="Other">Other Expenses</option>
+                </select>
+            </div>
+
+            <input type="text" id="exp_name" placeholder="Expense Details (e.g., Worker / Group Name)">
+            
+            <div id="row_bill_labor_calc" style="display:none; background: #f5f5f5; padding: 12px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #673ab7;">
+                <div style="margin-bottom: 8px;">
+                    <label style="font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px;">Daily Hulling Base Total (Q):</label>
+                    <input type="number" id="exp_labor_weight" readonly style="background: #e0e0e0; font-weight: bold; color: #333;" placeholder="0.00">
+                </div>
+                <div>
+                    <label style="font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px;">Rate Per Quintal (₹/Q):</label>
+                    <input type="number" id="exp_labor_rate" placeholder="Enter processing rate per quintal">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Total Amount (₹):</label>
+                <input type="number" id="exp_amount" placeholder="Amount (₹)">
             </div>
             
-            <select id="exp_type_cat">
-                <option value="Wages">Labour Wages</option>
-                <option value="Maintenance">Maintenance</option>
-                <option value="Fuel">Diesel/Fuel</option>
-                <option value="Other">Other Expenses</option>
-            </select>
-            
-            <input type="text" id="exp_name" placeholder="Expense Details">
-            <input type="number" id="exp_amount" placeholder="Amount (₹)">
-            <button id="btn_save_expense" class="bg-danger" style="background:#f44336;">Save Payment</button>
+            <button id="btn_save_expense" class="bg-danger" style="background:#f44336; margin-top: 10px;">Save Payment</button>
         </div>
     </div>
 

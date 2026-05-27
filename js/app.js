@@ -266,26 +266,7 @@ async function generateSummary() {
 
         hullingEntries.forEach(h => { totalRevenue += parseFloat(h.total) || 0; });
 
-        stockEntries.forEach(item => {
-            const amt = parseFloat(item.amount) || 0;
-            const weight = parseFloat(item.weight) || 0;
-            const itemTypeRaw = (item.type || "").trim();
-            const itemTypeLower = itemTypeRaw.toLowerCase();
-
-            if (item.action === "Sale") {
-                totalRevenue += amt;
-            } else if (item.action === "Purchase") {
-                totalExpenses += amt;
-                if (itemTypeLower.includes("diesel")) costCategories.diesel += amt;
-                else if (itemTypeLower.includes("salt")) costCategories.miscellaneous += amt;
-                else costCategories.paddy_purchases += amt;
-            }
-
-            if (itemTypeRaw) {
-                if (!stockInventory[itemTypeRaw]) stockInventory[itemTypeRaw] = 0;
-                stockInventory[itemTypeRaw] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
-            }
-        });
+        );
 
         expenseEntries.forEach(exp => {
             const amt = parseFloat(exp.amount) || 0;
@@ -293,7 +274,35 @@ async function generateSummary() {
             const expName = (exp.name || "").toLowerCase();
             const expType = (exp.type || "").toLowerCase();
 
-            if (expName.includes("labour") || expName.includes("wage") || expType.includes("labour")) costCategories.labor_wages += amt;
+      stockEntries.forEach(item => {
+    const amt = parseFloat(item.amount) || 0;
+    const weight = parseFloat(item.weight) || 0;
+    const itemTypeRaw = (item.type || "").trim();
+    const itemTypeLower = itemTypeRaw.toLowerCase();
+
+    if (item.action === "Sale") {
+        totalRevenue += amt;
+    } else if (item.action === "Purchase") {
+        totalExpenses += amt;
+        if (itemTypeLower.includes("diesel")) costCategories.diesel += amt;
+        else if (itemTypeLower.includes("salt")) costCategories.miscellaneous += amt;
+        else costCategories.paddy_purchases += amt;
+    }
+
+    if (itemTypeRaw) {
+        if (!stockInventory[itemTypeRaw]) stockInventory[itemTypeRaw] = 0;
+        
+        // DYNAMIC FIX: If it's a byproduct like husk or processed sale rice, 
+        // treat the sale action as an accumulation on the dashboard instead of a deduction.
+        if (itemTypeLower.includes("husk") || itemTypeLower.includes("waste") || itemTypeLower.includes("rice")) {
+            stockInventory[itemTypeRaw] += (item.action === "Sale") ? weight : -weight;
+        } else {
+            // Standard Paddy tracking rules
+            stockInventory[itemTypeRaw] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
+        }
+    }
+});
+      if (expName.includes("labour") || expName.includes("wage") || expType.includes("labour")) costCategories.labor_wages += amt;
             else if (expName.includes("electricity") || expName.includes("power") || expName.includes("mescom")) costCategories.electricity += amt;
             else if (expName.includes("diesel") || expType.includes("diesel")) costCategories.diesel += amt;
             else costCategories.miscellaneous += amt;

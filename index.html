@@ -3,15 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Parshwanatha Rice Mill - Enterprise</title>
+    <title>Parshwanatha Rice Mill - Enterprise Dashboard</title>
     
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .filter-bar { display: flex; gap: 10px; margin-bottom: 15px; background: #e0f2f1; padding: 10px; border-radius: 6px; }
+        .filter-btn { flex: 1; padding: 8px; border: none; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .filter-btn.active { background: #004d40; color: #fff; }
+        .dash-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .sub-card { background: #f9f9f9; padding: 12px; border-radius: 4px; margin-top: 8px; border-left: 3px solid #009688; font-size: 13px; }
+    </style>
 </head>
 <body>
 
@@ -22,7 +28,7 @@
 <div class="container">
     
     <div class="card date-header">
-        <label>📅 SELECTED DATE:</label>
+        <label>📅 SYSTEM MASTER DATE:</label>
         <input type="date" id="main_date_picker">
     </div>
 
@@ -47,14 +53,24 @@
     <div id="stock-tab" class="tab-content">
         <div class="card">
             <h3>Inventory Movement</h3>
-            <select id="st_action" onchange="loadDropdowns()">
+            <select id="st_action" onchange="onStockActionChange()">
                 <option value="Purchase">Stock In (Paddy Purchase)</option>
                 <option value="Sale">Stock Out (Rice Sale)</option>
                 <option value="Misc">Misc or Other Sale</option>
             </select>
+            
+            <div id="paddy_size_container" style="margin-bottom: 15px;">
+                <label><small>Paddy Classification Segment:</small></label>
+                <select id="st_paddy_size">
+                    <option value="Big Paddy">🌾 Big Paddy (ದೊಡ್ಡ ಭತ್ತ)</option>
+                    <option value="Small Paddy">🌾 Small Paddy (ಸಣ್ಣ ಭತ್ತ)</option>
+                </select>
+            </div>
+
             <select id="st_type">
                 </select>
-            <input type="text" id="st_name" placeholder="Party Name">
+            
+            <input type="text" id="st_name" placeholder="Party / Supplier Name">
             <div class="grid-2">
                 <input type="number" id="st_weight" placeholder="Weight (Q.kg)">
                 <input type="number" id="st_bags" placeholder="No. of Bags">
@@ -69,7 +85,6 @@
     <div id="expenses-tab" class="tab-content">
         <div class="card">
             <h3>Bills & Payments</h3>
-            
             <div class="form-group" style="margin-bottom: 15px;">
                 <label>Expense Category:</label>
                 <select id="exp_type_cat" onchange="toggleExpenseInputs()">
@@ -84,13 +99,13 @@
             <input type="text" id="exp_name" placeholder="Expense Details (e.g., Worker Name / Bill Details)">
             
             <div id="row_bill_labor_calc" style="display:none; background: #f5f5f5; padding: 12px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #673ab7;">
-                <div style="margin-bottom: 8px;">
-                    <label style="font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px;">Daily Hulling Base Total (Q):</label>
-                    <input type="number" id="exp_labor_weight" readonly style="background: #e0e0e0; font-weight: bold; color: #333;" placeholder="0.00">
+                <div>
+                    <label><small>Daily Hulling Base Total (Q):</small></label>
+                    <input type="number" id="exp_labor_weight" readonly style="background: #e0e0e0; font-weight: bold;">
                 </div>
                 <div>
-                    <label style="font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px;">Rate Per Quintal (₹/Q):</label>
-                    <input type="number" id="exp_labor_rate" placeholder="Enter processing rate per quintal">
+                    <label><small>Rate Per Quintal (₹/Q):</small></label>
+                    <input type="number" id="exp_labor_rate" placeholder="Processing wage rate">
                 </div>
             </div>
 
@@ -98,116 +113,135 @@
                 <label>Total Amount (₹):</label>
                 <input type="number" id="exp_amount" placeholder="Amount (₹)">
             </div>
-            
-            <button id="btn_save_expense" class="bg-danger" style="background:#f44336; margin-top: 10px;">Save Payment</button>
+            <button id="btn_save_expense" style="background:#f44336; margin-top: 10px;">Save Payment</button>
+        </div>
+    </div>
+
+    <div id="logistics-tab" class="tab-content">
+        <div class="card">
+            <h3>Vehicle Load Tracking</h3>
+            <select id="v_type">
+                <option value="Paddy Load Incoming">🚚 Paddy Load Incoming</option>
+                <option value="Husk Waste Outgoing">🚛 Husk Waste Outgoing</option>
+                <option value="Rice Shipment Outgoing">🚛 Rice Shipment Outgoing</option>
+            </select>
+            <input type="text" id="v_no" placeholder="Vehicle Number (e.g., KA-15-M-1234)">
+            <input type="text" id="v_party" placeholder="Driver / Party Name">
+            <div class="grid-2">
+                <input type="number" id="v_bags" placeholder="Total Bags Loaded">
+                <input type="number" id="v_net_weight" placeholder="Net Weight (Quintals)">
+            </div>
+            <textarea id="v_notes" placeholder="Additional transport details or mill remarks..." style="width:100%; height:60px; padding:8px; border-radius:4px; border:1px solid #ccc; margin-bottom:10px; font-family:inherit;"></textarea>
+            <button id="btn_save_logistics" style="background:#00796b; color:#fff;">Record Vehicle Entry</button>
+        </div>
+        <div class="card">
+            <h3>Active Transport Dispatch Sheet</h3>
+            <div id="logistics_list"></div>
+        </div>
+    </div>
+
+    <div id="dashboard-tab" class="tab-content">
+        <div class="filter-bar">
+            <button class="filter-btn active" id="btn_filter_day" onclick="setDashFilter('day')">Today</button>
+            <button class="filter-btn" id="btn_filter_month" onclick="setDashFilter('month')">This Month</button>
+            <button class="filter-btn" id="btn_filter_year" onclick="setDashFilter('year')">This Year</button>
+        </div>
+
+        <div class="metrics-row" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #2e7d32; padding: 15px; background: #fff;">
+                <h4 style="margin: 0; color: #555;">Total Revenue</h4>
+                <h2 id="dash_total_revenue" style="margin: 10px 0 0 0; color: #2e7d32;">₹0</h2>
+            </div>
+            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #c62828; padding: 15px; background: #fff;">
+                <h4 style="margin: 0; color: #555;">Total Expenditures</h4>
+                <h2 id="dash_total_costs" style="margin: 10px 0 0 0; color: #c62828;">₹0</h2>
+            </div>
+            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #1565c0; padding: 15px; background: #fff;">
+                <h4 style="margin: 0; color: #555;">Net Margin Profit</h4>
+                <h2 id="dash_net_profit" style="margin: 10px 0 0 0; color: #1565c0;">₹0</h2>
+            </div>
+        </div>
+
+        <div class="dash-breakdown-grid">
+            <div class="card">
+                <h4 style="color:#673ab7; margin:0;">🌾 Hulling Production Details</h4>
+                <div id="breakdown_hulling" class="sub-card">No entries found</div>
+            </div>
+            <div class="card">
+                <h4 style="color:#512da8; margin:0;">🚜 Paddy Purchase Breakdown</h4>
+                <div id="breakdown_paddy" class="sub-card">No entries found</div>
+            </div>
+            <div class="card">
+                <h4 style="color:#2e7d32; margin:0;">🍚 Rice Sales Breakdown</h4>
+                <div id="breakdown_rice" class="sub-card">No entries found</div>
+            </div>
+            <div class="card">
+                <h4 style="color:#f57c00; margin:0;">📦 Other / Misc Sales</h4>
+                <div id="breakdown_misc" class="sub-card">No entries found</div>
+            </div>
+            <div class="card" style="grid-column: 1 / -1;">
+                <h4 style="color:#d32f2f; margin:0;">💵 Detailed Expense Tracker</h4>
+                <div id="breakdown_expenses" class="sub-card">No entries found</div>
+            </div>
+        </div>
+
+        <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
+            <div class="card" style="padding: 15px; background: #fff; height: 350px;">
+                <h3>Operational Outflow Chart</h3>
+                <canvas id="expenseChart"></canvas>
+            </div>
+            <div class="card" style="padding: 15px; background: #fff; height: 350px;">
+                <h3>Paddy & Rice Vault Inventory Balances</h3>
+                <canvas id="stockBarChart"></canvas>
+            </div>
         </div>
     </div>
 
     <div id="history-tab" class="tab-content">
         <div class="card">
-            <h3>Reports & Export</h3>
+            <h3>Reports & Export Utility</h3>
             <div class="grid-2">
                 <button id="btn_export_daily_excel" class="bg-success" style="background:#2e7d32;">📥 Excel</button>
                 <button id="btn_export_daily_pdf" class="bg-danger" style="background:#c62828;">📄 Daily PDF</button>
             </div>
         </div>
-        
         <div class="card">
-            <h3>Daily Activity Log</h3>
+            <h3>Daily Operations Feed</h3>
             <div id="day_log"></div>
-        </div>
-
-        <div class="card">
-            <h3>Inventory Summary</h3>
-            <div class="grid-2 mb-15">
-                <button class="view-toggle active" data-view="month" style="padding:5px;">Month</button>
-                <button class="view-toggle" data-view="year" style="padding:5px;">Year</button>
-            </div>
-            <div id="summary_display_history"></div>
-        </div>
-    </div>
-
-    <div id="dashboard-tab" class="tab-content">
-        <div class="metrics-row" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #2e7d32; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h4 style="margin: 0; color: #555; font-size: 14px;">Total Revenue</h4>
-                <h2 id="dash_total_revenue" style="margin: 10px 0 0 0; color: #2e7d32; font-size: 28px;">₹0</h2>
-            </div>
-            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #c62828; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h4 style="margin: 0; color: #555; font-size: 14px;">Total Expenditures</h4>
-                <h2 id="dash_total_costs" style="margin: 10px 0 0 0; color: #c62828; font-size: 28px;">₹0</h2>
-            </div>
-            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #1565c0; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h4 style="margin: 0; color: #555; font-size: 14px;">Net Operational Profit</h4>
-                <h2 id="dash_net_profit" style="margin: 10px 0 0 0; color: #1565c0; font-size: 28px;">₹0</h2>
-            </div>
-        </div>
-
-        <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
-            <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Expense Breakdowns Structure</h3>
-                <div style="position: relative; height: 320px; width: 100%;">
-                    <canvas id="expenseChart"></canvas>
-                </div>
-            </div>
-            <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Paddy & Rice Stock Balances</h3>
-                <div style="position: relative; height: 320px; width: 100%;">
-                    <canvas id="stockBarChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Stock Inventory Reconciliation Table</h3>
-            <div id="summary_display" style="overflow-x: auto;"></div>
         </div>
     </div>
 
     <div id="settings-tab" class="tab-content">
         <div class="card">
-            <h3>Add Variety</h3>
-            <input type="text" id="new_item_val" placeholder="Variety Name (Ex: Sona Masuri)">
+            <h3>Add Custom Production Items</h3>
+            <input type="text" id="new_item_val" placeholder="Variety/Item Name (e.g., Apple Brand Bag, Salt, Diesel)">
             <select id="new_item_cat">
                 <option value="paddy">Paddy Variety</option>
                 <option value="rice">Rice Variety</option>
-                <option value="misc">Misc/Bags</option>
+                <option value="misc">Misc Ledger / Waste Byproducts</option>
             </select>
-            <button id="btn_add_variety">+ Add to List</button>
+            <button id="btn_add_variety">+ Add Configuration</button>
         </div>
-
         <div id="settings_grid"></div>
-
-        <div class="card text-center">
-            <h3>System Management</h3>
-            <button id="btn_backup" class="btn-sec" style="background:#455a64;">Backup (.json)</button>
+        <div class="card text-center" style="background:#fce4ec;">
+            <h3>System Management Database</h3>
+            <button id="btn_backup" style="background:#455a64; color:#fff; padding:10px; margin:5px;">Backup (.json)</button>
             <input type="file" id="import_file" style="display:none;" accept=".json">
-            <button id="btn_restore_trigger" class="btn-sec bg-gray" style="background:#9e9e9e;">Restore File</button>
-            <button id="btn_master_reset" style="background:#000; margin-top:20px; font-size: 11px;">Master Reset</button>
+            <button id="btn_restore_trigger" style="background:#9e9e9e; color:#fff; padding:10px; margin:5px;">Restore File</button>
+            <button id="btn_master_reset" style="background:#d32f2f; color:#fff; display:block; width:100%; margin-top:20px;">Master Structural Reset</button>
         </div>
     </div>
 
 </div>
 
 <div class="nav-bar">
-    <div class="nav-item active" data-tab="hulling-tab">
-        <span class="icon">🌾</span><span>Hulling</span>
-    </div>
-    <div class="nav-item" data-tab="stock-tab">
-        <span class="icon">📦</span><span>Stock</span>
-    </div>
-    <div class="nav-item" data-tab="expenses-tab">
-        <span class="icon">💵</span><span>Bills</span>
-    </div>
-    <div class="nav-item" data-tab="history-tab">
-        <span class="icon">📜</span><span>History</span>
-    </div>
-    <div class="nav-item" data-tab="dashboard-tab">
-        <span class="icon">📊</span><span>Dash</span>
-    </div>
-    <div class="nav-item" data-tab="settings-tab">
-        <span class="icon">⚙️</span><span>Settings</span>
-    </div>
+    <div class="nav-item active" data-tab="hulling-tab"><span>🌾 Hulling</span></div>
+    <div class="nav-item" data-tab="stock-tab"><span>📦 Stock</span></div>
+    <div class="nav-item" data-tab="expenses-tab"><span>💵 Bills</span></div>
+    <div class="nav-item" data-tab="logistics-tab"><span>🚚 Logistics</span></div>
+    <div class="nav-item" data-tab="dashboard-tab"><span>📊 Dash</span></div>
+    <div class="nav-item" data-tab="history-tab"><span>📜 History</span></div>
+    <div class="nav-item" data-tab="settings-tab"><span>⚙️ Settings</span></div>
 </div>
 
 <script src="js/db.js"></script>

@@ -61,7 +61,13 @@
                 <input type="number" id="st_weight" placeholder="Weight (Q.kg)">
                 <input type="number" id="st_bags" placeholder="No. of Bags">
                 <input type="number" id="st_bag_weight" placeholder="Weight Per Bag (KG)">
-                <input type="number" id="st_rate" placeholder="Rate per Q">
+                
+                <div id="row_base_rate" style="width: 100%;">
+                    <input type="number" id="st_rate" placeholder="Rate per Q">
+                </div>
+                <div id="row_labor_rate_per_quintal" style="width: 100%; display:none;">
+                    <input type="number" id="st_labor_rate" placeholder="₹ Rate Per Quintal">
+                </div>
             </div>
             <input type="number" id="st_amount" placeholder="Total Amount (₹)">
             <button id="btn_save_stock" class="bg-secondary">Save Stock Entry</button>
@@ -75,12 +81,14 @@
                 <button id="btn_auto_labour" class="bg-edit" style="background:#673ab7; font-size: 13px;">Auto Labours</button>
                 <button id="btn_set_elec" class="bg-secondary" style="background:#ff9800; font-size: 13px;">⚡ Electricity</button>
             </div>
+            
             <select id="exp_type_cat">
                 <option value="Wages">Labour Wages</option>
                 <option value="Maintenance">Maintenance</option>
                 <option value="Fuel">Diesel/Fuel</option>
                 <option value="Other">Other Expenses</option>
             </select>
+            
             <input type="text" id="exp_name" placeholder="Expense Details">
             <input type="number" id="exp_amount" placeholder="Amount (₹)">
             <button id="btn_save_expense" class="bg-danger" style="background:#f44336;">Save Payment</button>
@@ -91,15 +99,14 @@
         <div class="card">
             <h3>Reports & Export</h3>
             <div class="grid-2">
-                <button id="btn_export_excel" class="bg-success" style="background:#2e7d32;">📥 Excel</button>
-                <button id="btn_export_pdf" class="bg-danger" style="background:#c62828;">📄 Daily PDF</button>
+                <button id="btn_export_daily_excel" class="bg-success" style="background:#2e7d32;">📥 Excel</button>
+                <button id="btn_export_daily_pdf" class="bg-danger" style="background:#c62828;">📄 Daily PDF</button>
             </div>
         </div>
         
         <div class="card">
             <h3>Daily Activity Log</h3>
-            <div id="day_log">
-                </div>
+            <div id="day_log"></div>
         </div>
 
         <div class="card">
@@ -108,48 +115,46 @@
                 <button class="view-toggle active" data-view="month" style="padding:5px;">Month</button>
                 <button class="view-toggle" data-view="year" style="padding:5px;">Year</button>
             </div>
-            <div id="summary_display">
-                </div>
+            <div id="summary_display_history"></div>
         </div>
     </div>
 
     <div id="dashboard-tab" class="tab-content">
-    <div class="metrics-row" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
-        <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #2e7d32; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h4 style="margin: 0; color: #555; font-size: 14px;">Total Revenue</h4>
-            <h2 id="dash_total_revenue" style="margin: 10px 0 0 0; color: #2e7d32; font-size: 28px;">₹0</h2>
-        </div>
-        <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #c62828; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h4 style="margin: 0; color: #555; font-size: 14px;">Total Expenditures</h4>
-            <h2 id="dash_total_costs" style="margin: 10px 0 0 0; color: #c62828; font-size: 28px;">₹0</h2>
-        </div>
-        <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #1565c0; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h4 style="margin: 0; color: #555; font-size: 14px;">Net Operational Profit</h4>
-            <h2 id="dash_net_profit" style="margin: 10px 0 0 0; color: #1565c0; font-size: 28px;">₹0</h2>
-        </div>
-    </div>
-
-    <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
-        <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Expense Breakdowns Structure</h3>
-            <div style="position: relative; height: 320px; width: 100%;">
-                <canvas id="expenseChart"></canvas>
+        <div class="metrics-row" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #2e7d32; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="margin: 0; color: #555; font-size: 14px;">Total Revenue</h4>
+                <h2 id="dash_total_revenue" style="margin: 10px 0 0 0; color: #2e7d32; font-size: 28px;">₹0</h2>
+            </div>
+            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #c62828; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="margin: 0; color: #555; font-size: 14px;">Total Expenditures</h4>
+                <h2 id="dash_total_costs" style="margin: 10px 0 0 0; color: #c62828; font-size: 28px;">₹0</h2>
+            </div>
+            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #1565c0; padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="margin: 0; color: #555; font-size: 14px;">Net Operational Profit</h4>
+                <h2 id="dash_net_profit" style="margin: 10px 0 0 0; color: #1565c0; font-size: 28px;">₹0</h2>
             </div>
         </div>
-        <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Paddy & Rice Stock Balances</h3>
-            <div style="position: relative; height: 320px; width: 100%;">
-                <canvas id="stockBarChart"></canvas>
+
+        <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
+            <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Expense Breakdowns Structure</h3>
+                <div style="position: relative; height: 320px; width: 100%;">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+            </div>
+            <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Paddy & Rice Stock Balances</h3>
+                <div style="position: relative; height: 320px; width: 100%;">
+                    <canvas id="stockBarChart"></canvas>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-        <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Stock Inventory Reconciliation Table</h3>
-        <div id="summary_display" style="overflow-x: auto;"></div>
+        <div class="card" style="padding: 15px; background: #fff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Stock Inventory Reconciliation Table</h3>
+            <div id="summary_display" style="overflow-x: auto;"></div>
+        </div>
     </div>
-</div>
-
 
     <div id="settings-tab" class="tab-content">
         <div class="card">
@@ -166,15 +171,12 @@
         <div id="settings_grid"></div>
 
         <div class="card text-center">
-    <h3>System Management</h3>
-    <button id="btn_backup" class="btn-sec" style="background:#455a64;">Backup (.json)</button>
-    
-    <input type="file" id="import_file" style="display:none;" accept=".json">
-    
-    <button id="btn_restore_trigger" class="btn-sec bg-gray" style="background:#9e9e9e;">Restore File</button>
-    
-    <button id="btn_master_reset" style="background:#000; margin-top:20px; font-size: 11px;">Master Reset</button>
-</div>
+            <h3>System Management</h3>
+            <button id="btn_backup" class="btn-sec" style="background:#455a64;">Backup (.json)</button>
+            <input type="file" id="import_file" style="display:none;" accept=".json">
+            <button id="btn_restore_trigger" class="btn-sec bg-gray" style="background:#9e9e9e;">Restore File</button>
+            <button id="btn_master_reset" style="background:#000; margin-top:20px; font-size: 11px;">Master Reset</button>
+        </div>
     </div>
 
 </div>

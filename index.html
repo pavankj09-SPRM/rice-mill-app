@@ -3,250 +3,275 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Parshwanatha Rice Mill - Enterprise Dashboard</title>
-    
-    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    
+    <title>Shri Parshwanatha Rice Mill Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        .filter-bar { display: flex; gap: 10px; margin-bottom: 15px; background: #e0f2f1; padding: 10px; border-radius: 6px; }
-        .filter-btn { flex: 1; padding: 8px; border: none; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        .filter-btn.active { background: #004d40; color: #fff; }
-        .dash-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .sub-card { background: #f9f9f9; padding: 12px; border-radius: 4px; margin-top: 8px; border-left: 3px solid #009688; font-size: 13px; }
-    </style>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
 </head>
 <body>
 
-<header>SHRI PARSHWANATHA RICE MILL</header>
+    <header>
+        SHRI PARSHWANATHA RICE MILL
+    </header>
 
-<div id="toast">Saved Successfully!</div>
-
-<div class="container">
-    
-    <div class="card date-header">
-        <label>📅 SYSTEM MASTER DATE:</label>
-        <input type="date" id="main_date_picker">
-    </div>
-
-    <div id="hulling-tab" class="tab-content active">
-        <div class="card">
-            <h3>Hulling Entry</h3>
-            <input type="text" id="h_name" placeholder="Customer Name">
-            <input type="number" id="h_weight" placeholder="Paddy Weight (Ex: 1.50)">
-            <div class="grid-2">
-                <input type="number" id="h_rate" value="150" placeholder="Rate">
-                <select id="h_status">
-                    <option value="Paid">Paid</option>
-                    <option value="Pending">Pending</option>
-                </select>
-            </div>
-            <label><small>Total Amount (₹):</small></label>
-            <input type="number" id="h_total_input" class="readonly-total">
-            <button id="btn_save_hulling">Save & Record</button>
+    <div class="container">
+        
+        <div class="card date-header">
+            <label>📅 CURRENT WORKING DATE:</label>
+            <input type="date" id="main_date_picker" onchange="window.refreshAll()">
         </div>
-    </div>
 
-    <div id="stock-tab" class="tab-content">
-        <div class="card">
-            <h3>Inventory Movement</h3>
-            <select id="st_action" onchange="onStockActionChange()">
-                <option value="Purchase">Stock In (Paddy Purchase)</option>
-                <option value="Sale">Stock Out (Rice Sale)</option>
-                <option value="Misc">Misc or Other Sale</option>
-            </select>
-            
-            <div id="paddy_size_container" style="margin-bottom: 15px;">
-                <label><small>Paddy Classification Segment:</small></label>
-                <select id="st_paddy_size">
-                    <option value="Big Paddy">🌾 Big Paddy (ದೊಡ್ಡ ಭತ್ತ)</option>
-                    <option value="Small Paddy">🌾 Small Paddy (ಸಣ್ಣ ಭತ್ತ)</option>
-                </select>
-            </div>
-
-            <select id="st_type">
-                </select>
-            
-            <input type="text" id="st_name" placeholder="Party / Supplier Name">
-            <div class="grid-2">
-                <input type="number" id="st_weight" placeholder="Weight (Q.kg)">
-                <input type="number" id="st_bags" placeholder="No. of Bags">
-                <input type="number" id="st_bag_weight" placeholder="Weight Per Bag (KG)">
-                <input type="number" id="st_rate" placeholder="Rate per Q">
-            </div>
-            <input type="number" id="st_amount" placeholder="Total Amount (₹)">
-            <button id="btn_save_stock" class="bg-secondary">Save Stock Entry</button>
-        </div>
-    </div>
-
-    <div id="expenses-tab" class="tab-content">
-        <div class="card">
-            <h3>Bills & Payments</h3>
-            <div class="form-group" style="margin-bottom: 15px;">
-                <label>Expense Category:</label>
-                <select id="exp_type_cat" onchange="toggleExpenseInputs()">
-                    <option value="Wages">Labour Wages</option>
-                    <option value="Electricity">⚡ Electricity Bill</option>
-                    <option value="Maintenance">Maintenance</option>
-                    <option value="Fuel">Diesel/Fuel</option>
-                    <option value="Other">Other Expenses</option>
-                </select>
-            </div>
-
-            <input type="text" id="exp_name" placeholder="Expense Details (e.g., Worker Name / Bill Details)">
-            
-            <div id="row_bill_labor_calc" style="display:none; background: #f5f5f5; padding: 12px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #673ab7;">
-                <div>
-                    <label><small>Daily Hulling Base Total (Q):</small></label>
-                    <input type="number" id="exp_labor_weight" readonly style="background: #e0e0e0; font-weight: bold;">
-                </div>
-                <div>
-                    <label><small>Rate Per Quintal (₹/Q):</small></label>
-                    <input type="number" id="exp_labor_rate" placeholder="Processing wage rate">
+        <div id="dashboard-tab" class="tab-content">
+            <div class="card">
+                <h3>Mill Operations Summary</h3>
+                <div class="dash-breakdown-grid">
+                    <div class="sub-card" style="border-left-color: var(--primary-color);">
+                        <b style="color: var(--primary-color);">Hulling Production</b>
+                        <div id="dash_hulling_summary">0.00 Quintals processed</div>
+                    </div>
+                    <div class="sub-card" style="border-left-color: var(--success-color);">
+                        <b style="color: var(--success-color);">Current Rice Stock Balance</b>
+                        <div id="dash_rice_stock">0 Bags</div>
+                    </div>
+                    <div class="sub-card" style="border-left-color: var(--danger-color);">
+                        <b style="color: var(--danger-color);">Current Paddy Stock Balance</b>
+                        <div id="dash_paddy_stock">0 Bags</div>
+                    </div>
                 </div>
             </div>
-
-            <div class="form-group">
-                <label>Total Amount (₹):</label>
-                <input type="number" id="exp_amount" placeholder="Amount (₹)">
-            </div>
-            <button id="btn_save_expense" style="background:#f44336; margin-top: 10px;">Save Payment</button>
-        </div>
-    </div>
-
-    <div id="logistics-tab" class="tab-content">
-        <div class="card">
-            <h3>Vehicle Load Tracking</h3>
-            <select id="v_type">
-                <option value="Paddy Load Incoming">🚚 Paddy Load Incoming</option>
-                <option value="Husk Waste Outgoing">🚛 Husk Waste Outgoing</option>
-                <option value="Rice Shipment Outgoing">🚛 Rice Shipment Outgoing</option>
-            </select>
-            <input type="text" id="v_no" placeholder="Vehicle Number (e.g., KA-15-M-1234)">
-            <input type="text" id="v_party" placeholder="Driver / Party Name">
-            <div class="grid-2">
-                <input type="number" id="v_bags" placeholder="Total Bags Loaded">
-                <input type="number" id="v_net_weight" placeholder="Net Weight (Quintals)">
-            </div>
-            <textarea id="v_notes" placeholder="Additional transport details or mill remarks..." style="width:100%; height:60px; padding:8px; border-radius:4px; border:1px solid #ccc; margin-bottom:10px; font-family:inherit;"></textarea>
-            <button id="btn_save_logistics" style="background:#00796b; color:#fff;">Record Vehicle Entry</button>
-        </div>
-        <div class="card">
-            <h3>Active Transport Dispatch Sheet</h3>
-            <div id="logistics_list"></div>
-        </div>
-    </div>
-
-    <div id="dashboard-tab" class="tab-content">
-        <div class="filter-bar">
-            <button class="filter-btn active" id="btn_filter_day" onclick="setDashFilter('day')">Today</button>
-            <button class="filter-btn" id="btn_filter_month" onclick="setDashFilter('month')">This Month</button>
-            <button class="filter-btn" id="btn_filter_year" onclick="setDashFilter('year')">This Year</button>
-        </div>
-
-        <div class="metrics-row" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #2e7d32; padding: 15px; background: #fff;">
-                <h4 style="margin: 0; color: #555;">Total Revenue</h4>
-                <h2 id="dash_total_revenue" style="margin: 10px 0 0 0; color: #2e7d32;">₹0</h2>
-            </div>
-            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #c62828; padding: 15px; background: #fff;">
-                <h4 style="margin: 0; color: #555;">Total Expenditures</h4>
-                <h2 id="dash_total_costs" style="margin: 10px 0 0 0; color: #c62828;">₹0</h2>
-            </div>
-            <div class="card" style="flex: 1; min-width: 200px; border-top: 5px solid #1565c0; padding: 15px; background: #fff;">
-                <h4 style="margin: 0; color: #555;">Net Margin Profit</h4>
-                <h2 id="dash_net_profit" style="margin: 10px 0 0 0; color: #1565c0;">₹0</h2>
-            </div>
-        </div>
-
-        <div class="dash-breakdown-grid">
             <div class="card">
-                <h4 style="color:#673ab7; margin:0;">🌾 Hulling Production Details</h4>
-                <div id="breakdown_hulling" class="sub-card">No entries found</div>
+                <h3>Today's Activity Timeline</h3>
+                <div id="day_log_summary">No activities recorded today.</div>
+            </div>
+        </div>
+
+        <div id="hulling-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>Record New Hulling Batch</h3>
+                <label>Customer / Lot Name:</label>
+                <input type="text" id="h_name" placeholder="Enter party name or internal lot ID">
+                
+                <div class="grid-2">
+                    <div>
+                        <label>Paddy Weight Inward (Quintals):</label>
+                        <input type="number" id="h_weight" placeholder="0.00" oninput="calculateHullingTotal()">
+                    </div>
+                    <div>
+                        <label>Milling Rate per Quintal (₹):</label>
+                        <input type="number" id="h_rate" placeholder="0.00" oninput="calculateHullingTotal()">
+                    </div>
+                </div>
+
+                <label>Total Processing Charges (₹):</label>
+                <input type="text" id="h_total" class="readonly-total" readonly value="0.00">
+
+                <button onclick="saveHulling()" class="bg-success">Save Hulling Run</button>
+            </div>
+        </div>
+
+        <div id="stocks-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>Inventory Ledger Adjustment</h3>
+                <label>Inventory Item Type:</label>
+                <select id="s_item_type">
+                    <option value="Paddy">🌾 Paddy (ಭತ್ತ)</option>
+                    <option value="Rice">🍚 Processed Rice (ಅಕ್ಕಿ)</option>
+                    <option value="Broken Rice">🌾 Broken Rice (ನಚ್ಚು)</option>
+                    <option value="Husk">🍂 Husk / Bran (ಹೊಟ್ಟು/ತೌಡು)</option>
+                </select>
+
+                <div class="grid-2">
+                    <div>
+                        <label>Action / Movement:</label>
+                        <select id="s_action">
+                            <option value="Add">➕ Add to Stock (ಇನ್ವರ್ಡ್)</option>
+                            <option value="Remove">➖ Remove / Sell (ಔಟ್ವರ್ಡ್)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Paddy Grain Variety Classification:</label>
+                        <select id="s_paddy_size">
+                            <option value="Big Paddy">Big Paddy (ದೊಡ್ಡ ಭತ್ತ)</option>
+                            <option value="Small Paddy">Small Paddy (ಸಣ್ಣ ಭತ್ತ)</option>
+                            <option value="N/A">Not Applicable</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div>
+                        <label>Number of Bags:</label>
+                        <input type="number" id="s_bags" placeholder="0">
+                    </div>
+                    <div>
+                        <label>Avg Weight Per Bag (kg):</label>
+                        <input type="number" id="s_bag_weight" placeholder="e.g. 50">
+                    </div>
+                </div>
+
+                <button onclick="saveStock()" class="bg-secondary">Commit Inventory Changes</button>
+            </div>
+        </div>
+
+        <div id="billing-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>Generate Sale Invoice</h3>
+                <label>Customer / Buyer Name:</label>
+                <input type="text" id="b_customer" placeholder="Buyer company or personal name">
+
+                <label>Product Sold:</label>
+                <select id="b_product">
+                    <option value="Sona Masuri">Sona Masuri Rice</option>
+                    <option value="Raw Rice">Raw Rice (ಕೆಂಪು / ಬಿಳಿ ಅಕ್ಕಿ)</option>
+                    <option value="Husk Waste">Husk Waste</option>
+                </select>
+
+                <div class="grid-2">
+                    <div>
+                        <label>Quantity / Quintals Sold:</label>
+                        <input type="number" id="b_qty" placeholder="0.00" oninput="calculateBillingTotal()">
+                    </div>
+                    <div>
+                        <label>Price Rate (₹ / Quintal):</label>
+                        <input type="number" id="b_rate" placeholder="0.00" oninput="calculateBillingTotal()">
+                    </div>
+                </div>
+
+                <label>Grand Final Bill Amount (₹):</label>
+                <input type="text" id="b_total" class="readonly-total" readonly value="0.00">
+
+                <button onclick="saveBill()" class="bg-primary">Post & Print Invoice</button>
+            </div>
+        </div>
+
+        <div id="logistics-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>Vehicle Freight & Load Registry</h3>
+                
+                <label>Load Category & Destination Flow:</label>
+                <select id="v_type" onchange="toggleLogisticsPaddyFields()">
+                    <option value="Paddy Load Outgoing">🚛 Paddy Load Outgoing (ಹೋಗುವ ಭತ್ತದ ಲೋಡ್)</option>
+                    <option value="Paddy Load Incoming">📥 Paddy Load Incoming (ಬರುವ ಭತ್ತದ ಲೋಡ್)</option>
+                    <option value="Husk Waste Outgoing">🚛 Husk Waste Outgoing (ಹೋಗುವ ಹೊಟ್ಟು/ತೌಡು ಲೋಡ್)</option>
+                    <option value="Rice Shipment Outgoing">🚛 Rice Shipment Outgoing (ಹೋಗುವ ಅಕ್ಕಿ ಲೋಡ್)</option>
+                </select>
+
+                <div id="v_paddy_type_container" style="margin-bottom: 15px;">
+                    <label>Paddy Grain Variety Type:</label>
+                    <select id="v_paddy_size">
+                        <option value="Big Paddy">🌾 Big Paddy (ದೊಡ್ಡ ಭತ್ತ)</option>
+                        <option value="Small Paddy">🌾 Small Paddy (ಸಣ್ಣ ಭತ್ತ)</option>
+                        <option value="N/A">Not Applicable</option>
+                    </select>
+                </div>
+
+                <div class="grid-2">
+                    <div>
+                        <label>Receiving Vendor / Party Name:</label>
+                        <input type="text" id="v_party" placeholder="Enter Vendor Business Name">
+                    </div>
+                    <div>
+                        <label>Vehicle Driver Person Name:</label>
+                        <input type="text" id="v_driver" placeholder="Driver Name">
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div>
+                        <label>Vehicle Freight Plate No:</label>
+                        <input type="text" id="v_no" placeholder="e.g. KA-15-M-1234">
+                    </div>
+                    <div>
+                        <label>Total Bags Loaded:</label>
+                        <input type="number" id="v_bags" placeholder="0">
+                    </div>
+                </div>
+
+                <label>Net Freight Mass Weight (Quintals):</label>
+                <input type="number" id="v_net_weight" placeholder="0.00">
+
+                <label>Special Delivery Remarks / Dispatch Notes:</label>
+                <input type="text" id="v_notes" placeholder="e.g. Sent via gate pass #402">
+                
+                <button onclick="saveLogistics()" style="background:#00796b; color:#fff;">Commit Transport Manifest</button>
+            </div>
+
+            <div class="card">
+                <h3>Active Dispatch Sheet Log</h3>
+                <div id="logistics_list"></div>
+            </div>
+        </div>
+
+        <div id="history-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>Reports & Export Utility</h3>
+                <div class="grid-2">
+                    <button onclick="alert('Excel Export Fired!')" class="bg-success">📥 Download Excel</button>
+                    <button onclick="alert('PDF Export Fired!')" class="bg-danger">📄 Export Daily PDF</button>
+                </div>
             </div>
             <div class="card">
-                <h4 style="color:#512da8; margin:0;">🚜 Paddy Purchase Breakdown</h4>
-                <div id="breakdown_paddy" class="sub-card">No entries found</div>
+                <h3>Daily Operations Master Log Feed</h3>
+                <div id="history_day_log_feed">No records found for this selected date.</div>
+            </div>
+        </div>
+
+        <div id="settings-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>System Base Profiles Configuration</h3>
+                <label>Vendor Configuration Category:</label>
+                <select id="cfg_category">
+                    <option value="Vendor">Paddy Purchasing Vendor</option>
+                    <option value="Buyer">Rice Buyer Account</option>
+                </select>
+                <label>Business Short Name Key:</label>
+                <input type="text" id="cfg_name" placeholder="e.g. Sri Balaji Traders">
+                <label>Full Legal Name / Address details:</label>
+                <input type="text" id="cfg_full_name" placeholder="Full legal operational address info">
+                
+                <button onclick="saveSetting()" class="bg-secondary">Add Account Entity</button>
             </div>
             <div class="card">
-                <h4 style="color:#2e7d32; margin:0;">🍚 Rice Sales Breakdown</h4>
-                <div id="breakdown_rice" class="sub-card">No entries found</div>
-            </div>
-            <div class="card">
-                <h4 style="color:#f57c00; margin:0;">📦 Other / Misc Sales</h4>
-                <div id="breakdown_misc" class="sub-card">No entries found</div>
-            </div>
-            <div class="card" style="grid-column: 1 / -1;">
-                <h4 style="color:#d32f2f; margin:0;">💵 Detailed Expense Tracker</h4>
-                <div id="breakdown_expenses" class="sub-card">No entries found</div>
+                <h3>Registered Entities Registry</h3>
+                <div id="settings_list"></div>
             </div>
         </div>
 
-        <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
-            <div class="card" style="padding: 15px; background: #fff; height: 350px;">
-                <h3>Operational Outflow Chart</h3>
-                <canvas id="expenseChart"></canvas>
-            </div>
-            <div class="card" style="padding: 15px; background: #fff; height: 350px;">
-                <h3>Paddy & Rice Vault Inventory Balances</h3>
-                <canvas id="stockBarChart"></canvas>
-            </div>
-        </div>
     </div>
 
-    <div id="history-tab" class="tab-content">
-        <div class="card">
-            <h3>Reports & Export Utility</h3>
-            <div class="grid-2">
-                <button id="btn_export_daily_excel" class="bg-success" style="background:#2e7d32;">📥 Excel</button>
-                <button id="btn_export_daily_pdf" class="bg-danger" style="background:#c62828;">📄 Daily PDF</button>
-            </div>
+    <div id="toast">Database Updated Cleanly</div>
+
+    <nav class="nav-bar">
+        <div class="nav-item active" onclick="switchTab('dashboard-tab', this)">
+            <div class="nav-icon">📊</div>
+            <span>Dash</span>
         </div>
-        <div class="card">
-            <h3>Daily Operations Feed</h3>
-            <div id="day_log"></div>
+        <div class="nav-item" onclick="switchTab('hulling-tab', this)">
+            <div class="nav-icon">⚙️</div>
+            <span>Hulling</span>
         </div>
-    </div>
-
-    <div id="settings-tab" class="tab-content">
-        <div class="card">
-            <h3>Add Custom Production Items</h3>
-            <input type="text" id="new_item_val" placeholder="Variety/Item Name (e.g., Apple Brand Bag, Salt, Diesel)">
-            <select id="new_item_cat">
-                <option value="paddy">Paddy Variety</option>
-                <option value="rice">Rice Variety</option>
-                <option value="misc">Misc Ledger / Waste Byproducts</option>
-            </select>
-            <button id="btn_add_variety">+ Add Configuration</button>
+        <div class="nav-item" onclick="switchTab('stocks-tab', this)">
+            <div class="nav-icon">📦</div>
+            <span>Stocks</span>
         </div>
-        <div id="settings_grid"></div>
-        <div class="card text-center" style="background:#fce4ec;">
-            <h3>System Management Database</h3>
-            <button id="btn_backup" style="background:#455a64; color:#fff; padding:10px; margin:5px;">Backup (.json)</button>
-            <input type="file" id="import_file" style="display:none;" accept=".json">
-            <button id="btn_restore_trigger" style="background:#9e9e9e; color:#fff; padding:10px; margin:5px;">Restore File</button>
-            <button id="btn_master_reset" style="background:#d32f2f; color:#fff; display:block; width:100%; margin-top:20px;">Master Structural Reset</button>
+        <div class="nav-item" onclick="switchTab('billing-tab', this)">
+            <div class="nav-icon">🧾</div>
+            <span>Billing</span>
         </div>
-    </div>
+        <div class="nav-item" onclick="switchTab('logistics-tab', this)">
+            <div class="nav-icon">🚛</div>
+            <span>Logistics</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('history-tab', this)">
+            <div class="nav-icon">📜</div>
+            <span>History</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('settings-tab', this)">
+            <div class="nav-icon">🔧</div>
+            <span>Settings</span>
+        </div>
+    </nav>
 
-</div>
-
-<div class="nav-bar">
-    <div class="nav-item active" data-tab="hulling-tab"><span>🌾 Hulling</span></div>
-    <div class="nav-item" data-tab="stock-tab"><span>📦 Stock</span></div>
-    <div class="nav-item" data-tab="expenses-tab"><span>💵 Bills</span></div>
-    <div class="nav-item" data-tab="logistics-tab"><span>🚚 Logistics</span></div>
-    <div class="nav-item" data-tab="dashboard-tab"><span>📊 Dash</span></div>
-    <div class="nav-item" data-tab="history-tab"><span>📜 History</span></div>
-    <div class="nav-item" data-tab="settings-tab"><span>⚙️ Settings</span></div>
-</div>
-
-<script src="js/db.js"></script>
-<script src="js/logic.js"></script>
-<script src="js/app.js"></script>
-
+    <script src="js/db.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

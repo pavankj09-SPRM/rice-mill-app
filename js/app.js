@@ -3,11 +3,10 @@
  * Master Consolidated Application Interface Script
  */
 
-// --- 1. GLOBAL CHART CONFIGURATION POINTERS ---
 let expenseChartInstance = null;
 let stockChartInstance = null;
 
-// --- 2. CORE SYSTEM REFRESH LOGIC ---
+// --- 1. CORE SYSTEM REFRESH LOGIC ---
 window.refreshAll = async () => {
     try {
         await viewDayLog();
@@ -21,7 +20,7 @@ window.refreshAll = async () => {
     }
 };
 
-// --- 3. DYNAMIC TAB CONTAINER ROUTING SWITCHER ---
+// --- 2. DYNAMIC TAB CONTAINER ROUTING SWITCHER ---
 const switchTab = (tabId) => {
     document.querySelectorAll('.tab-content').forEach(c => {
         c.classList.remove('active');
@@ -43,8 +42,8 @@ const switchTab = (tabId) => {
     }
 };
 
-// --- 4. HARDWARE RUNTIME INITIALIZATION BLOCK ---
-window.onload = () => {
+// --- 3. HARDWARE RUNTIME INITIALIZATION BLOCK ---
+window.onload = async () => {
     const today = new Date().toISOString().split('T')[0];
     const datePicker = document.getElementById('main_date_picker');
     if (datePicker) {
@@ -67,7 +66,6 @@ window.onload = () => {
     bindAction('btn_add_variety', addNewVariety);
     bindAction('btn_backup', exportData);
     
-    // Global Export Bindings for Daily Reports
     bindAction('btn_export_daily_pdf', exportDailyPDF);
     bindAction('btn_export_daily_excel', exportDailyExcel);
     
@@ -86,20 +84,23 @@ window.onload = () => {
         systemFileInput.onchange = (e) => importData(e);
     }
 
-    // Listen for category changes on the Bills / Expenses page
     const expCatSelector = document.getElementById('exp_type_cat');
     if (expCatSelector) {
         expCatSelector.onchange = toggleExpenseInputs;
     }
 
     setupAutoCalculations();
+    
+    // Crucial: Runs immediately on startup so the dropdown list populates straight away
+    await loadDropdowns(); 
+    
     switchTab('hulling-tab');
     window.refreshAll();
 };
 
-// --- 5. MATHEMATICAL FORMULATION INTERFACES ---
+// --- 4. MATHEMATICAL FORMULATION INTERFACES ---
 function setupAutoCalculations() {
-    // A. Hulling Service Auto-Calculations
+    // A. Hulling Service Calculations
     const hWeight = document.getElementById('h_weight');
     const hRate = document.getElementById('h_rate');
     const hTotal = document.getElementById('h_total_input');
@@ -117,7 +118,7 @@ function setupAutoCalculations() {
         hRate.oninput = runHullingCalc;
     }
 
-    // B. Complete Inventory Stock Calculation Engine
+    // B. Inventory Calculations
     const stWeight = document.getElementById('st_weight');
     const stRate = document.getElementById('st_rate');
     const stAmount = document.getElementById('st_amount');
@@ -152,7 +153,7 @@ function setupAutoCalculations() {
         stBagWeight.oninput = runStockCalc;
     }
 
-    // C. DYNAMIC LABOUR WAGE CALCULATOR FOR BILLS PAGE
+    // C. Labor Wages Calculation
     const expLaborWeight = document.getElementById('exp_labor_weight');
     const expLaborRate = document.getElementById('exp_labor_rate');
     const expAmount = document.getElementById('exp_amount');
@@ -167,7 +168,7 @@ function setupAutoCalculations() {
     }
 }
 
-// DYNAMIC UI FIELD MANAGEMENT FOR EXPENSES / LABOUR WAGES
+// --- 5. DYNAMIC UI DROPDOWN MANAGEMENT ---
 async function toggleExpenseInputs() {
     const category = document.getElementById('exp_type_cat')?.value;
     const laborCalcRow = document.getElementById('row_bill_labor_calc');
@@ -177,11 +178,9 @@ async function toggleExpenseInputs() {
     if (!laborCalcRow || !expAmountField) return;
 
     if (category === "Wages") {
-        // Show labor calculation parameters, lock total field for calculations
         laborCalcRow.style.display = "block";
         expAmountField.readOnly = true;
 
-        // Fetch selected day's total hulling capacity instantly
         const selectedDate = document.getElementById('main_date_picker').value;
         const currentDayHulling = await db.hulling.where('date').equals(selectedDate).toArray();
         const totalHullingWeight = currentDayHulling.reduce((sum, h) => sum + (parseFloat(h.weight) || 0), 0);
@@ -190,7 +189,6 @@ async function toggleExpenseInputs() {
             expWeightField.value = totalHullingWeight;
         }
     } else {
-        // Hide labor fields for normal operational bills
         laborCalcRow.style.display = "none";
         expAmountField.readOnly = false;
     }
@@ -208,23 +206,50 @@ function getUnitLabel(type = "") {
 
 async function loadDropdowns() {
     const action = document.getElementById('st_action').value;
-    const allSettings = await db.settings.toArray();
     const stockSelect = document.getElementById('st_type');
     if (!stockSelect) return;
+    
     stockSelect.innerHTML = ""; 
 
-    allSettings.forEach(item => {
-        const itemName = item.fullName || item.name;
-        if (action === "Purchase" && item.category === "paddy") {
-            ["New", "Old"].forEach(t => {
-                stockSelect.add(new Option(`🌾 ${itemName} (${t})`, `${itemName} (${t})`));
+    try {
+        const allSettings = await db.settings.toArray();
+
+        if (action === "Purchase") {
+            const paddyItems = allSettings.filter(item => item.category === "paddy");
+            if (paddyItems.length === 0) {
+                stockSelect.add(new Option("⚠️ No Paddy Varieties Found", ""));
+            }
+            paddyItems.forEach(item => {
+                const itemName = item.fullName || item.name;
+                stockSelect.add(new Option(`🌾 ${itemName} (New)`, `${itemName} (New)`));
+                stockSelect.add(new Option(`🌾 ${itemName} (Old)`, `${itemName} (Old)`));
             });
-        } else if (action === "Sale" && item.category === "rice") {
-            stockSelect.add(new Option(`🍚 ${itemName}`, itemName));
-        } else if (action === "Misc" && item.category === "misc") {
-            stockSelect.add(new Option(`📦 ${itemName}`, itemName));
+
+        } else if (action === "Sale") {
+            const riceItems = allSettings.filter(item => item.category === "rice");
+            if (riceItems.length === 0) {
+                stockSelect.add(new Option("⚠️ No Rice Varieties Found", ""));
+            }
+            riceItems.forEach(item => {
+                const itemName = item.fullName || item.name;
+                stockSelect.add(new Option(`🍚 ${itemName}`, itemName));
+            });
+
+        } else if (action === "Misc") {
+            const miscItems = allSettings.filter(item => item.category === "misc");
+            if (miscItems.length === 0) {
+                stockSelect.add(new Option("📦 Husk Waste", "Husk Waste"));
+                stockSelect.add(new Option("📦 Broken Rice", "Broken Rice"));
+            } else {
+                miscItems.forEach(item => {
+                    const itemName = item.fullName || item.name;
+                    stockSelect.add(new Option(`📦 ${itemName}`, itemName));
+                });
+            }
         }
-    });
+    } catch (err) {
+        console.error("Error populating stock dropdown menus:", err);
+    }
 }
 
 async function refreshSettingsList() {
@@ -245,7 +270,7 @@ async function refreshSettingsList() {
 async function addNewVariety() {
     const name = document.getElementById('new_item_val').value.trim();
     const cat = document.getElementById('new_item_cat').value;
-    if (!name) return alert("Please enter a clear classification label.");
+    if (!name) return alert("Please enter a classification label.");
     await db.settings.add({ fullName: name, category: cat });
     document.getElementById('new_item_val').value = "";
     window.refreshAll();
@@ -311,7 +336,7 @@ async function generateSummary() {
             const expName = (exp.name || "").toLowerCase();
 
             if (expCat === "wages" || expName.includes("labour") || expName.includes("wage")) costCategories.labor_wages += amt;
-            else if (expName.includes("electricity") || expName.includes("power") || expName.includes("mescom")) costCategories.electricity += amt;
+            else if (expCat === "electricity" || expName.includes("electricity") || expName.includes("power") || expName.includes("mescom")) costCategories.electricity += amt;
             else if (expCat === "fuel" || expName.includes("diesel")) costCategories.diesel += amt;
             else costCategories.miscellaneous += amt;
         });
@@ -329,7 +354,6 @@ async function generateSummary() {
         renderExpensePieChart(costCategories);
         renderStockBarChart(stockInventory, categoryMap);
         
-        // Render to both structural summary hooks present across views
         if(document.getElementById('summary_display')) renderInventoryTable(stockInventory, 'summary_display');
         if(document.getElementById('summary_display_history')) renderInventoryTable(stockInventory, 'summary_display_history');
 
@@ -338,7 +362,7 @@ async function generateSummary() {
     }
 }
 
-// --- 7. ANTI-GLITCH CHART RENDERING FLOWS ---
+// --- 7. CHART RENDERING FLOWS ---
 function renderExpensePieChart(costs) {
     const canvas = document.getElementById('expenseChart');
     if (!canvas) return;
@@ -423,7 +447,7 @@ function renderInventoryTable(stockInventory, elementId) {
     target.innerHTML = html + `</tbody></table>`;
 }
 
-// --- 8. DATA LEGER WRITING WORKFLOW MANAGEMENT ---
+// --- 8. DATA LEDGER WRITING OPERATIONS ---
 async function saveHulling() {
     await db.hulling.add({
         name: document.getElementById('h_name').value.trim(),
@@ -473,7 +497,11 @@ async function saveExpense() {
         const rate = document.getElementById('exp_labor_rate').value || 0;
         const weight = document.getElementById('exp_labor_weight').value || 0;
         details = `${details} (Labor Payout: ${weight}Q @ ₹${rate}/Q)`.trim();
+    } else if (category === "Electricity" && !details) {
+        details = "MESCOM Electricity Bill Payout";
     }
+
+    if (amount <= 0) return alert("Please enter a valid expense amount.");
 
     await db.expenses.add({
         category: category,
@@ -566,7 +594,7 @@ async function generateBillPDF(id, table) {
     doc.save(`${data.name || 'Receipt'}_Statement.pdf`);
 }
 
-// --- 9. FIXED EXPORT ENGINE PIPELINES ---
+// --- 9. STABLE EXPORT ENGINE PIPELINES ---
 async function exportDailyPDF() {
     const targetDate = document.getElementById('main_date_picker').value;
     const hulling = await db.hulling.where('date').equals(targetDate).toArray();
@@ -621,27 +649,31 @@ async function exportDailyExcel() {
         return alert("No data logs recorded to export for this date.");
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Transaction Category,Party Name,Quantity/Weight,Rate Base,Total Net Amount\r\n";
+    let csvRows = ["Transaction Category,Party Name,Quantity/Weight,Rate Base,Total Net Amount"];
 
     hulling.forEach(h => {
-        csvContent += `"Hulling Production","${h.name || '-'}","${h.weight} Q","${h.rate}","${h.total}"\r\n`;
+        csvRows.push(`"Hulling Production","${h.name || '-'}","${h.weight} Q","${h.rate}","${h.total}"`);
     });
     stock.forEach(s => {
         let qty = s.bags ? `${s.bags} Bags x ${s.bagWeight}KG` : `${s.weight} ${s.unit || 'KG'}`;
-        csvContent += `"${s.action} - ${s.type}","${s.name || '-'}","${qty}","${s.rate}","${s.amount}"\r\n`;
+        csvRows.push(`"${s.action} - ${s.type}","${s.name || '-'}","${qty}","${s.rate}","${s.amount}"`);
     });
     expenses.forEach(e => {
-        csvContent += `"Expense - ${e.category}","${e.name || '-'}","Financial Outflow","-","${e.amount}"\r\n`;
+        csvRows.push(`"Expense - ${e.category}","${e.name || '-'}","Financial Outflow","-","${e.amount}"`);
     });
 
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = csvRows.join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blobUrl = URL.createObjectURL(blob);
+    
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.setAttribute("href", blobUrl);
     link.setAttribute("download", `Daily_Report_${targetDate}.csv`);
     document.body.appendChild(link);
+    
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl); 
 }
 
 async function deleteEntry(id, table) {

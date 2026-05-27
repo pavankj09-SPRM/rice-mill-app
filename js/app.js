@@ -419,7 +419,7 @@ async function exportData() {
     link.click();
 }
 
-async function generateSummary() {
+/*async function generateSummary() {
     const all = await db.stock.toArray();
     const inv = {};
     all.forEach(i => {
@@ -440,6 +440,189 @@ async function generateSummary() {
     const targetDisplay = document.getElementById('summary_display');
     if (targetDisplay) targetDisplay.innerHTML = html + "</table>";
 }
+*/
+// Global chart instances to prevent canvas re-use crashes
+let expenseChartInstance = null;
+let stockChartInstance = null;
+
+async function generateSummary() {
+    try {
+        // --- 1. EXTRACT DATA FROM LOCAL STORES ---
+        const stockEntries = await db.stock.toArray();
+        const hullingEntries = await db.hulling.toArray();
+        
+        // Support for expenses table if defined, fallback gracefully if empty
+        let expenseEntries = [];
+        if (db.expenses) {
+            expenseEntries = await db.expenses.toArray();
+        }
+
+        // --- 2. CALCULATE REVENUE AND SYSTEM COST METRICS ---
+        let totalRevenue = 0;
+        let totalExpenses = 0;
+
+        // Group structures for charts
+        let costCategories = {
+            paddy_purchases: 0,
+            labor_wages: 0,
+            electricity: 0,
+            diesel: 0,
+            miscellaneous: 0
+        };
+
+        let stockInventory = {};
+
+        // Process Hulling Income (Revenue)
+        hullingEntries.forEach(h => {
+            totalRevenue += parseFloat(h.total) || 0;
+        });
+
+        // Process Stock Transactions (Purchases, Sales, and Material Overheads)
+        stockEntries.forEach(item => {
+            const amount = parseFloat(item.amount) || 0;
+            const weight = parseFloat(item.weight) || 0;
+            const itemType = (item.type || "").toLowerCase();
+
+            if (item.action === "Sale") {
+                totalRevenue += amount;
+            } else if (item.action === "Purchase") {
+                totalExpenses += amount;
+                costCategories.paddy_purchases += amount;
+            }
+
+            // Group inventory volumes safely
+            if (item.type) {
+                if (!stockInventory[item.type]) stockInventory[item.type] = 0;
+                stockInventory[item.type] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
+            }
+        });
+
+        // Process Specialized Fixed Overhead Ledger Entries
+        expenseEntries.forEach(exp => {
+            const amt = parseFloat(exp.amount) || 0;
+            totalExpenses += amt;
+            
+            const cat = (exp.category || "").toLowerCase();
+            if (cat.includes("labour") || cat.includes("wage")) costCategories.labor_wages += amt;
+            else if (cat.includes("electricity") || cat.includes("power")) costCategories.electricity += amt;
+            else if (cat.includes("diesel")) costCategories.diesel += amt;
+            else costCategories.miscellaneous += amt;
+        });
+
+        // Fallback checks for common items saved via general actions
+        stockEntries.forEach(item => {
+            const amt = parseFloat(item.amount) || 0;
+            const name = (item.type || "").toLowerCase();
+            if (item.action === "Purchase" || item.action === "Expense") {
+                if (name.includes("diesel")) costCategories.diesel += amt;
+                if (name.includes("salt")) costCategories.miscellaneous += amt;
+            }
+        });
+
+        const netProfit = totalRevenue - totalExpenses;
+
+        // --- 3. INJECT THE METRICS VALUES INTO THE UI CARDS ---
+        if (document.getElementById('dash_total_revenue')) {
+            document.getElementById('dash_total_revenue').innerText = "₹" + totalRevenue.toLocaleString('en-IN');
+        }
+        if (document.getElementById('dash_total_costs')) {
+            document.getElementById('dash_total_costs').innerText = "₹" + totalExpenses.toLocaleString('en-IN');
+        }
+        if (document.getElementById('dash_net_profit')) {
+            const profitEl = document.getElementById('dash_net_profit');
+            profitEl.innerText = "₹" + netProfit.toLocaleString('en-IN');
+            profitEl.style.color = netProfit >= 0 ? "#4caf50" : "#f44336";
+        }
+
+        // --- 4. RENDER GRAPHICAL REPRESENTATIONS ---
+        renderExpensePieChart(costCategories);
+        renderStockBarChart(stockInventory);
+
+        // --- 5. RENDER THE DETAILED RECONCILIATION DATA TABLE ---
+        let html = "<table class='summary-table' style='width:100%; border-collapse: collapse; margin-top:10px;'>";
+        html += "<tr style='background-color:#f2f2f2; border-bottom:2px solid #ddd;'><th style='padding:8px; text-align:left;'>Variety Reference</th><th style='padding:8px; text-align:left;'>Net Balance Volume</th></tr>";
+        
+        const stockKeys = Object.keys(stockInventory);
+        if (stockKeys.length === 0) {
+            html += "<tr><td colspan='2' style='text-align:center; padding:12px; color:#888;'>No recorded commodity variants available.</td></tr>";
+        } else {
+            stockKeys.forEach(k => {
+                html += `<tr style='border-bottom: 1px solid #ddd;'><td style='padding:8px;'>${k}</td><td style='padding:8px;'><b>${stockInventory[k].toFixed(2)} Q</b></td></tr>`;
+            });
+        }
+        html += "</table>";
+        
+        const targetDisplay = document.getElementById('summary_display');
+        if (targetDisplay) targetDisplay.innerHTML = html;
+
+    } catch (error) {
+        console.error("Dashboard Render Engine Exception:", error);
+    }
+}
+
+// Helper Function: Pie Chart Rendering
+function renderExpensePieChart(costs) {
+    const ctx = document.getElementById('expenseChart');
+    if (!ctx) return;
+
+    if (expenseChartInstance) {
+        expenseChartInstance.destroy();
+    }
+
+    expenseChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Paddy Material Purchases', 'Labour Wages', 'Electricity Power Overheads', 'Diesel Fuel Costs', 'Other Miscellaneous'],
+            datasets: [{
+                data: [costs.paddy_purchases, costs.labor_wages, costs.electricity, costs.diesel, costs.miscellaneous],
+                backgroundColor: ['#673ab7', '#ff9800', '#2196f3', '#e91e63', '#9e9e9e'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+// Helper Function: Bar Chart Rendering
+function renderStockBarChart(inventory) {
+    const ctx = document.getElementById('stockBarChart');
+    if (!ctx) return;
+
+    if (stockChartInstance) {
+        stockChartInstance.destroy();
+    }
+
+    const labels = Object.keys(inventory);
+    const dataValues = Object.values(inventory);
+
+    stockChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Net Balance on Hand (Quintals / KG)',
+                data: dataValues,
+                backgroundColor: labels.map(l => l.toLowerCase().includes('rice') ? '#4caf50' : '#ff9800'),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+}
+
 
 function showToast(text) {
     const t = document.getElementById('toast');

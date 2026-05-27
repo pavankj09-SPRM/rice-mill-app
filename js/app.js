@@ -441,27 +441,26 @@ async function exportData() {
     if (targetDisplay) targetDisplay.innerHTML = html + "</table>";
 }
 */
-// Global chart instances to prevent canvas re-use crashes
+// Keep track of chart instances globally to safely clear canvas rendering loops
 let expenseChartInstance = null;
 let stockChartInstance = null;
 
 async function generateSummary() {
     try {
-        // --- 1. EXTRACT DATA FROM LOCAL STORES ---
+        // --- 1. PULL ALL RELEVANT DATA STORES ---
         const stockEntries = await db.stock.toArray();
         const hullingEntries = await db.hulling.toArray();
+        const settingsEntries = await db.settings.toArray();
         
-        // Support for expenses table if defined, fallback gracefully if empty
         let expenseEntries = [];
         if (db.expenses) {
             expenseEntries = await db.expenses.toArray();
         }
 
-        // --- 2. CALCULATE REVENUE AND SYSTEM COST METRICS ---
+        // --- 2. DEFINE INITIAL ANALYTICS LEDGERS ---
         let totalRevenue = 0;
         let totalExpenses = 0;
 
-        // Group structures for charts
         let costCategories = {
             paddy_purchases: 0,
             labor_wages: 0,
@@ -472,95 +471,100 @@ async function generateSummary() {
 
         let stockInventory = {};
 
-        // Process Hulling Income (Revenue)
+        // Create a lookup dictionary from settings to safely cross-reference categories
+        // Maps e.g., "Abhilasha Small" -> "paddy", "Diamond Sona" -> "rice"
+        const categoryMap = {};
+        settingsEntries.forEach(s => {
+            const nameKey = (s.fullName || s.name || "").toLowerCase().trim();
+            if (nameKey) {
+                categoryMap[nameKey] = (s.category || "").toLowerCase().trim();
+            }
+        });
+
+        // --- 3. AGGREGATE REVENUE AND OVERHEAD COSTS ---
+
+        // A. Hulling Operations Income
         hullingEntries.forEach(h => {
             totalRevenue += parseFloat(h.total) || 0;
         });
 
-        // Process Stock Transactions (Purchases, Sales, and Material Overheads)
+        // B. Stock Operations (Purchases, Sales & Inventory Volumes)
         stockEntries.forEach(item => {
-            const amount = parseFloat(item.amount) || 0;
+            const amt = parseFloat(item.amount) || 0;
             const weight = parseFloat(item.weight) || 0;
-            const itemType = (item.type || "").toLowerCase();
+            const itemTypeRaw = (item.type || "").trim();
+            const itemTypeLower = itemTypeRaw.toLowerCase();
 
+            // Handle Financial Flows
             if (item.action === "Sale") {
-                totalRevenue += amount;
+                totalRevenue += amt;
             } else if (item.action === "Purchase") {
-                totalExpenses += amount;
-                costCategories.paddy_purchases += amount;
+                totalExpenses += amt;
+                
+                // Route to Paddy Purchases by default unless explicitly matching an operational utility
+                if (itemTypeLower.includes("diesel")) {
+                    costCategories.diesel += amt;
+                } else if (itemTypeLower.includes("salt")) {
+                    costCategories.miscellaneous += amt;
+                } else {
+                    costCategories.paddy_purchases += amt;
+                }
             }
 
-            // Group inventory volumes safely
-            if (item.type) {
-                if (!stockInventory[item.type]) stockInventory[item.type] = 0;
-                stockInventory[item.type] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
+            // Group Stock Volumes accurately (Reconciliation Logic)
+            if (itemTypeRaw) {
+                if (!stockInventory[itemTypeRaw]) stockInventory[itemTypeRaw] = 0;
+                stockInventory[itemTypeRaw] += (item.action === "Purchase" || item.action === "Inward") ? weight : -weight;
             }
         });
 
-        // Process Specialized Fixed Overhead Ledger Entries
+        // C. Dedicated Fixed/Variable Expenditure Ledger
         expenseEntries.forEach(exp => {
             const amt = parseFloat(exp.amount) || 0;
             totalExpenses += amt;
             
-            const cat = (exp.category || "").toLowerCase();
-            if (cat.includes("labour") || cat.includes("wage")) costCategories.labor_wages += amt;
-            else if (cat.includes("electricity") || cat.includes("power")) costCategories.electricity += amt;
-            else if (cat.includes("diesel")) costCategories.diesel += amt;
-            else costCategories.miscellaneous += amt;
-        });
+            const expName = (exp.name || "").toLowerCase();
+            const expType = (exp.type || "").toLowerCase();
 
-        // Fallback checks for common items saved via general actions
-        stockEntries.forEach(item => {
-            const amt = parseFloat(item.amount) || 0;
-            const name = (item.type || "").toLowerCase();
-            if (item.action === "Purchase" || item.action === "Expense") {
-                if (name.includes("diesel")) costCategories.diesel += amt;
-                if (name.includes("salt")) costCategories.miscellaneous += amt;
+            // Smart String Routing matching local operational accounts (Labor, Pigmy, Bills)
+            if (expName.includes("labour") || expName.includes("wage") || expType.includes("labour")) {
+                costCategories.labor_wages += amt;
+            } else if (expName.includes("electricity") || expName.includes("power") || expName.includes("mescom")) {
+                costCategories.electricity += amt;
+            } else if (expName.includes("diesel") || expType.includes("diesel")) {
+                costCategories.diesel += amt;
+            } else {
+                costCategories.miscellaneous += amt; // Safely routes elements like "Pigmy" deposits
             }
         });
 
         const netProfit = totalRevenue - totalExpenses;
 
-        // --- 3. INJECT THE METRICS VALUES INTO THE UI CARDS ---
+        // --- 4. UPDATE METRIC DISPLAY TILE VIEWS ---
         if (document.getElementById('dash_total_revenue')) {
-            document.getElementById('dash_total_revenue').innerText = "₹" + totalRevenue.toLocaleString('en-IN');
+            document.getElementById('dash_total_revenue').innerText = "₹" + Math.round(totalRevenue).toLocaleString('en-IN');
         }
         if (document.getElementById('dash_total_costs')) {
-            document.getElementById('dash_total_costs').innerText = "₹" + totalExpenses.toLocaleString('en-IN');
+            document.getElementById('dash_total_costs').innerText = "₹" + Math.round(totalExpenses).toLocaleString('en-IN');
         }
         if (document.getElementById('dash_net_profit')) {
             const profitEl = document.getElementById('dash_net_profit');
-            profitEl.innerText = "₹" + netProfit.toLocaleString('en-IN');
-            profitEl.style.color = netProfit >= 0 ? "#4caf50" : "#f44336";
+            profitEl.innerText = "₹" + Math.round(netProfit).toLocaleString('en-IN');
+            profitEl.style.color = netProfit >= 0 ? "#2e7d32" : "#c62828";
         }
 
-        // --- 4. RENDER GRAPHICAL REPRESENTATIONS ---
+        // --- 5. RENDER THE CHART WINDOWS AND RECONCILIATION DATA TABLE ---
         renderExpensePieChart(costCategories);
-        renderStockBarChart(stockInventory);
-
-        // --- 5. RENDER THE DETAILED RECONCILIATION DATA TABLE ---
-        let html = "<table class='summary-table' style='width:100%; border-collapse: collapse; margin-top:10px;'>";
-        html += "<tr style='background-color:#f2f2f2; border-bottom:2px solid #ddd;'><th style='padding:8px; text-align:left;'>Variety Reference</th><th style='padding:8px; text-align:left;'>Net Balance Volume</th></tr>";
-        
-        const stockKeys = Object.keys(stockInventory);
-        if (stockKeys.length === 0) {
-            html += "<tr><td colspan='2' style='text-align:center; padding:12px; color:#888;'>No recorded commodity variants available.</td></tr>";
-        } else {
-            stockKeys.forEach(k => {
-                html += `<tr style='border-bottom: 1px solid #ddd;'><td style='padding:8px;'>${k}</td><td style='padding:8px;'><b>${stockInventory[k].toFixed(2)} Q</b></td></tr>`;
-            });
-        }
-        html += "</table>";
-        
-        const targetDisplay = document.getElementById('summary_display');
-        if (targetDisplay) targetDisplay.innerHTML = html;
+        renderStockBarChart(stockInventory, categoryMap);
+        renderInventoryTable(stockInventory);
 
     } catch (error) {
-        console.error("Dashboard Render Engine Exception:", error);
+        console.error("Dashboard Analytics Compilation Failure:", error);
     }
 }
 
-// Helper Function: Pie Chart Rendering
+// --- 6. CHART GENERATION SUB-HANDLERS ---
+
 function renderExpensePieChart(costs) {
     const ctx = document.getElementById('expenseChart');
     if (!ctx) return;
@@ -569,27 +573,44 @@ function renderExpensePieChart(costs) {
         expenseChartInstance.destroy();
     }
 
+    // Only render visual chart arcs if expenses are logged to prevent empty gray voids
+    const absoluteCosts = Object.values(costs).reduce((a, b) => a + b, 0);
+
     expenseChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Paddy Material Purchases', 'Labour Wages', 'Electricity Power Overheads', 'Diesel Fuel Costs', 'Other Miscellaneous'],
+            labels: ['Paddy Material', 'Labour Wages', 'Electricity / Power', 'Diesel Fuel', 'Other (Pigmy/Misc)'],
             datasets: [{
                 data: [costs.paddy_purchases, costs.labor_wages, costs.electricity, costs.diesel, costs.miscellaneous],
-                backgroundColor: ['#673ab7', '#ff9800', '#2196f3', '#e91e63', '#9e9e9e'],
-                borderWidth: 1
+                backgroundColor: ['#512da8', '#f57c00', '#0288d1', '#d81b60', '#78909c'],
+                borderColor: '#ffffff',
+                borderWidth: 2
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' }
+                legend: { 
+                    position: 'bottom',
+                    labels: { boxWidth: 12, font: { size: 11 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let value = context.raw || 0;
+                            let total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            let percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return ` ${context.label}: ₹${value.toLocaleString('en-IN')} (${percentage}%)`;
+                        }
+                    }
+                }
             }
         }
     });
 }
 
-// Helper Function: Bar Chart Rendering
-function renderStockBarChart(inventory) {
+function renderStockBarChart(inventory, categoryMap) {
     const ctx = document.getElementById('stockBarChart');
     if (!ctx) return;
 
@@ -600,21 +621,46 @@ function renderStockBarChart(inventory) {
     const labels = Object.keys(inventory);
     const dataValues = Object.values(inventory);
 
+    // Dynamic coloring based on configuration mapping rules
+    const backgroundColors = labels.map(label => {
+        const lowerLabel = label.toLowerCase();
+        
+        // Find if any entry in our configuration maps directly to a category
+        let category = "paddy"; // Default fallback
+        for (const [key, val] of Object.entries(categoryMap)) {
+            if (lowerLabel.includes(key)) {
+                category = val;
+                break;
+            }
+        }
+
+        if (category === "rice" || lowerLabel.includes("rice")) return '#2e7d32'; // Green for processed product
+        if (lowerLabel.includes("husk") || lowerLabel.includes("waste")) return '#b0bec5'; // Grey for mill byproduct
+        return '#ffb300'; // Amber for unprocessed paddy storage volumes
+    });
+
     stockChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [{
-                label: 'Net Balance on Hand (Quintals / KG)',
+                label: 'Current Net Volume Available',
                 data: dataValues,
-                backgroundColor: labels.map(l => l.toLowerCase().includes('rice') ? '#4caf50' : '#ff9800'),
-                borderWidth: 1
+                backgroundColor: backgroundColors,
+                borderRadius: 4
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true }
+                y: { 
+                    beginAtZero: true,
+                    title: { display: true, text: 'Quantity (Quintals / KG Units)', font: { weight: 'bold' } }
+                },
+                x: {
+                    ticks: { maxRotation: 45, minRotation: 45, font: { size: 10 } }
+                }
             },
             plugins: {
                 legend: { display: false }
@@ -622,6 +668,42 @@ function renderStockBarChart(inventory) {
         }
     });
 }
+
+function renderInventoryTable(stockInventory) {
+    const targetDisplay = document.getElementById('summary_display');
+    if (!targetDisplay) return;
+
+    let html = `
+        <table class="summary-table" style="width:100%; border-collapse:collapse; text-align:left;">
+            <thead>
+                <tr style="background-color:#eff1f5; border-bottom:2px solid #cfd8dc;">
+                    <th style="padding:12px 10px;">Commodity Reference Variant Name</th>
+                    <th style="padding:12px 10px; text-align:right;">Current Book Stock Quantity</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    const keys = Object.keys(stockInventory);
+    if (keys.length === 0) {
+        html += `<tr><td colspan="2" style="text-align:center; padding:20px; color:#78909c;">No physical inventory tracking logs recorded.</td></tr>`;
+    } else {
+        keys.forEach((k, index) => {
+            const unit = (k.toLowerCase().includes("husk") || k.toLowerCase().includes("rice")) ? "KG" : "Q";
+            const rowBg = index % 2 === 0 ? "#ffffff" : "#f8f9fa";
+            html += `
+                <tr style="background-color:${rowBg}; border-bottom:1px solid #eceff1;">
+                    <td style="padding:10px;">${k}</td>
+                    <td style="padding:10px; text-align:right; font-weight:bold; color:${stockInventory[k] >= 0 ? '#1b5e20' : '#b71c1c'}">
+                        ${stockInventory[k].toFixed(2)} ${unit}
+                    </td>
+                </tr>`;
+        });
+    }
+    
+    html += `</tbody></table>`;
+    targetDisplay.innerHTML = html;
+}
+
 
 
 function showToast(text) {

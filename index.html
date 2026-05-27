@@ -53,9 +53,7 @@
                 <option value="Misc">Misc or Other Sale</option>
             </select>
             <select id="st_type">
-                <option>Husk Waste</option>
-                <option>Broken Rice</option>
-            </select>
+                </select>
             <input type="text" id="st_name" placeholder="Party Name">
             <div class="grid-2">
                 <input type="number" id="st_weight" placeholder="Weight (Q.kg)">
@@ -76,13 +74,14 @@
                 <label>Expense Category:</label>
                 <select id="exp_type_cat" onchange="toggleExpenseInputs()">
                     <option value="Wages">Labour Wages</option>
+                    <option value="Electricity">⚡ Electricity Bill</option>
                     <option value="Maintenance">Maintenance</option>
                     <option value="Fuel">Diesel/Fuel</option>
                     <option value="Other">Other Expenses</option>
                 </select>
             </div>
 
-            <input type="text" id="exp_name" placeholder="Expense Details (e.g., Worker / Group Name)">
+            <input type="text" id="exp_name" placeholder="Expense Details (e.g., Worker Name / Bill Details)">
             
             <div id="row_bill_labor_calc" style="display:none; background: #f5f5f5; padding: 12px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #673ab7;">
                 <div style="margin-bottom: 8px;">

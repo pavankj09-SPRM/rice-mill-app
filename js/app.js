@@ -2,6 +2,15 @@
  * js/app.js - Shri Parshwanatha Rice Mill (Enterprise Edition)
  * Master Consolidated Application Interface Script
  */
+// TEMPORARY MOBILE DIAGNOSTIC TOAST
+window.onerror = function(message, source, lineno, colno, error) {
+    alert("❌ CRITICAL APP ERROR:\n" + message + "\nLine: " + lineno);
+    return false;
+};
+
+if (typeof db === 'undefined') {
+    alert("🚨 DATABASE ERROR: The 'db' variable is missing! Check your script tags.");
+}
 
 let expenseChartInstance = null;
 let stockChartInstance = null;

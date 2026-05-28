@@ -1,279 +1,731 @@
 /**
- * js/app.js - Operations Application Engine
+ * js/app.js - Shri Parshwanatha Rice Mill (Enterprise Edition)
+ * Master Consolidated Application Interface Script
  */
 
-// Establish local working date footprint on startup sequence execution
-document.addEventListener("DOMContentLoaded", () => {
-    const picker = document.getElementById('main_date_picker');
-    if (picker && !picker.value) {
-        const today = new Date().toISOString().split('T')[0];
-        picker.value = today;
-    }
-    window.refreshAll();
-});
+let expenseChartInstance = null;
+let stockChartInstance = null;
 
-// Navigation Tab Routing Controller Engine Block 
-function switchTab(tabId, element) {
-    // Hide all view panels
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.style.display = 'none';
-    });
-    // Activate requested module target view container 
-    document.getElementById(tabId).style.display = 'block';
-    
-    // Clear out navigation highlight active states
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    // Anchor marker feedback into active clicked element
-    element.classList.add('active');
-}
-
-// Dynamic Form Field Visibility Engine for Transport Logic
-function toggleLogisticsPaddyFields() {
-    const vType = document.getElementById('v_type').value;
-    const paddyContainer = document.getElementById('v_paddy_type_container');
-    if (paddyContainer) {
-        if (vType.includes("Paddy Load")) {
-            paddyContainer.style.display = "block";
-        } else {
-            paddyContainer.style.display = "none";
-            document.getElementById('v_paddy_size').value = "N/A";
-        }
-    }
-}
-
-// Master Automation Sync Pipelines Refreshes
+// --- 1. CORE SYSTEM REFRESH LOGIC ---
 window.refreshAll = async () => {
     try {
         await viewDayLog();
-        await refreshLogisticsList();
         await generateSummary();
         await refreshSettingsList();
-        toggleLogisticsPaddyFields();
+        if (typeof toggleExpenseInputs === 'function') {
+            await toggleExpenseInputs();
+        }
     } catch (e) {
-        console.error("Pipeline Core Sync Refresh Failure Node:", e);
+        console.error("Refresh Performance Error:", e);
     }
 };
 
-/* --- CALCULATOR LOGIC ENGINES --- */
-function calculateHullingTotal() {
-    const w = parseFloat(document.getElementById('h_weight').value) || 0;
-    const r = parseFloat(document.getElementById('h_rate').value) || 0;
-    document.getElementById('h_total').value = (w * r).toFixed(2);
-}
+// --- 2. DYNAMIC TAB CONTAINER ROUTING SWITCHER ---
+const switchTab = (tabId) => {
+    document.querySelectorAll('.tab-content').forEach(c => {
+        c.classList.remove('active');
+        c.style.display = "none";
+    });
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
-// Fixed minor typing reference block
-function calculateBillingTotal() {
-    const q = parseFloat(document.getElementById('b_qty').value) || 0;
-    const r = parseFloat(document.getElementById('b_rate').value) || 0;
-    document.getElementById('b_total').value = (q * r).toFixed(2);
-}
+    const target = document.getElementById(tabId);
+    const nav = document.querySelector(`[data-tab="${tabId}"]`);
 
-/* --- STORAGE COMMIT ACTIONS DATA-LAYERS --- */
-async function saveHulling() {
-    const name = document.getElementById('h_name').value.trim();
-    const w = parseFloat(document.getElementById('h_weight').value) || 0;
-    const r = parseFloat(document.getElementById('h_rate').value) || 0;
-    const tot = w * r;
-    const date = document.getElementById('main_date_picker').value;
+    if (target) {
+        target.classList.add('active');
+        target.style.display = "block";
+    }
+    if (nav) nav.classList.add('active');
 
-    if (!name) return alert("Please specify customer identity batch tag account.");
+    if (['dashboard-tab', 'history-tab', 'stock-tab', 'settings-tab', 'expenses-tab'].includes(tabId)) {
+        window.refreshAll();
+    }
+};
 
-    await db.hulling.add({ name, weight: w, rate: r, total: tot, status: "Pending", date });
-    showToast("Hulling Transaction Batch Recorded Successfully.");
-    
-    document.getElementById('h_name').value = "";
-    document.getElementById('h_weight').value = "";
-    document.getElementById('h_rate').value = "";
-    document.getElementById('h_total').value = "0.00";
-    window.refreshAll();
-}
+// --- 3. HARDWARE RUNTIME INITIALIZATION BLOCK ---
+window.onload = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const datePicker = document.getElementById('main_date_picker');
+    if (datePicker) {
+        datePicker.value = today;
+        datePicker.onchange = window.refreshAll;
+    }
 
-async function saveStock() {
-    const type = document.getElementById('s_item_type').value;
-    const action = document.getElementById('s_action').value;
-    const pSize = document.getElementById('s_paddy_size').value;
-    const bags = parseInt(document.getElementById('s_bags').value) || 0;
-    const bWeight = parseFloat(document.getElementById('s_bag_weight').value) || 0;
-    const date = document.getElementById('main_date_picker').value;
-
-    await db.stock.add({ name: type, action, type, paddySize: pSize, weight: (bags * bWeight)/100, bags, bagWeight: bWeight, rate:0, amount:0, date });
-    showToast("Inventory Adjustment Committed.");
-    
-    document.getElementById('s_bags').value = "";
-    document.getElementById('s_bag_weight').value = "";
-    window.refreshAll();
-}
-
-async function saveBill() {
-    const cust = document.getElementById('b_customer').value.trim();
-    const prod = document.getElementById('b_product').value;
-    const qty = parseFloat(document.getElementById('b_qty').value) || 0;
-    const rate = parseFloat(document.getElementById('b_rate').value) || 0;
-    const date = document.getElementById('main_date_picker').value;
-
-    if (!cust) return alert("Customer buyer registry context label identity missing.");
-
-    await db.stock.add({ name: prod, action: "Remove", type: "Rice", paddySize: "N/A", weight: qty, bags: 0, bagWeight: 0, rate: rate, amount: (qty * rate), date });
-    showToast("Invoice Entry Successfully Billed!");
-
-    document.getElementById('b_customer').value = "";
-    document.getElementById('b_qty').value = "";
-    document.getElementById('b_rate').value = "";
-    document.getElementById('b_total').value = "0.00";
-    window.refreshAll();
-}
-
-async function saveLogistics() {
-    const vType = document.getElementById('v_type').value;
-    const vNo = document.getElementById('v_no').value.trim();
-    const vParty = document.getElementById('v_party').value.trim();
-    const vDriver = document.getElementById('v_driver').value.trim();
-    const vPaddySize = document.getElementById('v_paddy_size').value;
-    const vBags = parseInt(document.getElementById('v_bags').value) || 0;
-    const vWeight = parseFloat(document.getElementById('v_net_weight').value) || 0;
-    const vNotes = document.getElementById('v_notes').value.trim();
-
-    if (!vNo) return alert("Please enter the vehicle freight registration plate number.");
-    if (!vParty) return alert("Please fill out Vendor/Party configuration column.");
-
-    await db.logistics.add({
-        vehicleType: vType, vehicleNo: vNo.toUpperCase(), partyName: vParty,
-        driverName: vDriver || 'N/A', paddySize: vPaddySize, bags: vBags, netWeight: vWeight, notes: vNotes,
-        date: document.getElementById('main_date_picker').value
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.onclick = () => switchTab(btn.getAttribute('data-tab'));
     });
 
-    showToast("Vehicle Registry Logged Cleanly!");
-    document.getElementById('v_no').value = "";
-    document.getElementById('v_party').value = "";
-    document.getElementById('v_driver').value = "";
-    document.getElementById('v_bags').value = "";
-    document.getElementById('v_net_weight').value = "";
-    document.getElementById('v_notes').value = "";
+    const bindAction = (id, targetFunction) => {
+        const component = document.getElementById(id);
+        if (component) component.onclick = targetFunction;
+    };
+
+    bindAction('btn_save_hulling', saveHulling);
+    bindAction('btn_save_stock', saveStock);
+    bindAction('btn_save_expense', saveExpense);
+    bindAction('btn_add_variety', addNewVariety);
+    bindAction('btn_backup', exportData);
+    
+    bindAction('btn_export_daily_pdf', exportDailyPDF);
+    bindAction('btn_export_daily_excel', exportDailyExcel);
+    
+    bindAction('btn_master_reset', async () => {
+        if (confirm("🚨 DANGER: This will permanently wipe your database! Proceed?")) {
+            await db.delete();
+            location.reload();
+        }
+    });
+
+    const systemRestoreBtn = document.getElementById('btn_restore_trigger');
+    const systemFileInput = document.getElementById('import_file');
+
+    if (systemRestoreBtn && systemFileInput) {
+        systemRestoreBtn.onclick = () => systemFileInput.click();
+        systemFileInput.onchange = (e) => importData(e);
+    }
+
+    const expCatSelector = document.getElementById('exp_type_cat');
+    if (expCatSelector) {
+        expCatSelector.onchange = toggleExpenseInputs;
+    }
+
+    setupAutoCalculations();
+    
+    // Crucial: Runs immediately on startup so the dropdown list populates straight away
+    await loadDropdowns(); 
+    
+    switchTab('hulling-tab');
+    window.refreshAll();
+};
+
+// --- 4. MATHEMATICAL FORMULATION INTERFACES ---
+function setupAutoCalculations() {
+    // A. Hulling Service Calculations
+    const hWeight = document.getElementById('h_weight');
+    const hRate = document.getElementById('h_rate');
+    const hTotal = document.getElementById('h_total_input');
+
+    const runHullingCalc = () => {
+        if (document.activeElement !== hTotal) {
+            const weightVal = parseFloat(hWeight.value) || 0;
+            const rate = parseFloat(hRate.value) || 0;
+            hTotal.value = Math.round(weightVal * rate);
+        }
+    };
+
+    if (hWeight && hRate) {
+        hWeight.oninput = runHullingCalc;
+        hRate.oninput = runHullingCalc;
+    }
+
+    // B. Inventory Calculations
+    const stWeight = document.getElementById('st_weight');
+    const stRate = document.getElementById('st_rate');
+    const stAmount = document.getElementById('st_amount');
+    const stBags = document.getElementById('st_bags');
+    const stBagWeight = document.getElementById('st_bag_weight');
+
+    const runStockCalc = () => {
+        if (!stWeight || !stRate || !stAmount) return;
+
+        const bags = parseFloat(stBags?.value) || 0;
+        const bagWeight = parseFloat(stBagWeight?.value) || 0;
+        const weight = parseFloat(stWeight.value) || 0;
+        const rate = parseFloat(stRate.value) || 0;
+        let total = 0;
+
+        if (bags > 0 && bagWeight > 0) {
+            const calculatedTotalKg = bags * bagWeight;
+            stWeight.value = calculatedTotalKg;
+            total = calculatedTotalKg * rate;
+        } else {
+            total = weight * rate;
+        }
+        stAmount.value = Math.round(total);
+    };
+
+    if (stWeight && stRate) {
+        stWeight.oninput = runStockCalc;
+        stRate.oninput = runStockCalc;
+    }
+    if (stBags && stBagWeight) {
+        stBags.oninput = runStockCalc;
+        stBagWeight.oninput = runStockCalc;
+    }
+
+    // C. Labor Wages Calculation
+    const expLaborWeight = document.getElementById('exp_labor_weight');
+    const expLaborRate = document.getElementById('exp_labor_rate');
+    const expAmount = document.getElementById('exp_amount');
+
+    if (expLaborWeight && expLaborRate && expAmount) {
+        const runExpenseLaborCalc = () => {
+            const weight = parseFloat(expLaborWeight.value) || 0;
+            const rate = parseFloat(expLaborRate.value) || 0;
+            expAmount.value = Math.round(weight * rate);
+        };
+        expLaborRate.oninput = runExpenseLaborCalc;
+    }
+}
+
+// --- 5. DYNAMIC UI DROPDOWN MANAGEMENT ---
+async function toggleExpenseInputs() {
+    const category = document.getElementById('exp_type_cat')?.value;
+    const laborCalcRow = document.getElementById('row_bill_labor_calc');
+    const expAmountField = document.getElementById('exp_amount');
+    const expWeightField = document.getElementById('exp_labor_weight');
+
+    if (!laborCalcRow || !expAmountField) return;
+
+    if (category === "Wages") {
+        laborCalcRow.style.display = "block";
+        expAmountField.readOnly = true;
+
+        const selectedDate = document.getElementById('main_date_picker').value;
+        const currentDayHulling = await db.hulling.where('date').equals(selectedDate).toArray();
+        const totalHullingWeight = currentDayHulling.reduce((sum, h) => sum + (parseFloat(h.weight) || 0), 0);
+        
+        if (expWeightField) {
+            expWeightField.value = totalHullingWeight;
+        }
+    } else {
+        laborCalcRow.style.display = "none";
+        expAmountField.readOnly = false;
+    }
+}
+
+function getUnitLabel(type = "") {
+    type = type.toLowerCase();
+    if (type.includes("white") || type.includes("red")) return "Q";
+    if (type.includes("husk")) return "KG";
+    if (type.includes("diesel")) return "Ltr";
+    if (type.includes("salt")) return "Bag";
+    if (type.includes("empty bag")) return "Nos";
+    return "KG";
+}
+
+async function loadDropdowns() {
+    const action = document.getElementById('st_action').value;
+    const stockSelect = document.getElementById('st_type');
+    if (!stockSelect) return;
+    
+    stockSelect.innerHTML = ""; 
+
+    try {
+        const allSettings = await db.settings.toArray();
+
+        if (action === "Purchase") {
+            const paddyItems = allSettings.filter(item => item.category === "paddy");
+            if (paddyItems.length === 0) {
+                stockSelect.add(new Option("⚠️ No Paddy Varieties Found", ""));
+            }
+            paddyItems.forEach(item => {
+                const itemName = item.fullName || item.name;
+                stockSelect.add(new Option(`🌾 ${itemName} (New)`, `${itemName} (New)`));
+                stockSelect.add(new Option(`🌾 ${itemName} (Old)`, `${itemName} (Old)`));
+            });
+
+        } else if (action === "Sale") {
+            const riceItems = allSettings.filter(item => item.category === "rice");
+            if (riceItems.length === 0) {
+                stockSelect.add(new Option("⚠️ No Rice Varieties Found", ""));
+            }
+            riceItems.forEach(item => {
+                const itemName = item.fullName || item.name;
+                stockSelect.add(new Option(`🍚 ${itemName}`, itemName));
+            });
+
+        } else if (action === "Misc") {
+            const miscItems = allSettings.filter(item => item.category === "misc");
+            if (miscItems.length === 0) {
+                stockSelect.add(new Option("📦 Husk Waste", "Husk Waste"));
+                stockSelect.add(new Option("📦 Broken Rice", "Broken Rice"));
+            } else {
+                miscItems.forEach(item => {
+                    const itemName = item.fullName || item.name;
+                    stockSelect.add(new Option(`📦 ${itemName}`, itemName));
+                });
+            }
+        }
+    } catch (err) {
+        console.error("Error populating stock dropdown menus:", err);
+    }
+}
+
+async function refreshSettingsList() {
+    const list = document.getElementById('settings_grid');
+    if (!list) return;
+    const data = await db.settings.toArray();
+    list.innerHTML = "<h3 style='margin-top:0;'>Saved System Configurations</h3>";
+    data.forEach(item => {
+        list.innerHTML += `
+            <div class="item-row" style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee;">
+                <span><b>${item.category.toUpperCase()}:</b> ${item.fullName || item.name}</span>
+                <button class="btn-sm" style="background:#d32f2f; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;" onclick="deleteVariety(${item.id})">Delete</button>
+            </div>`;
+    });
+    await loadDropdowns();
+}
+
+async function addNewVariety() {
+    const name = document.getElementById('new_item_val').value.trim();
+    const cat = document.getElementById('new_item_cat').value;
+    if (!name) return alert("Please enter a classification label.");
+    await db.settings.add({ fullName: name, category: cat });
+    document.getElementById('new_item_val').value = "";
     window.refreshAll();
 }
 
-async function deleteLogistics(id) {
-    if(confirm("Delete this transport log permanently?")) {
-        await db.logistics.delete(id);
+async function deleteVariety(id) {
+    if (confirm("Delete this setup item?")) {
+        await db.settings.delete(id);
         window.refreshAll();
     }
 }
 
-async function saveSetting() {
-    const cat = document.getElementById('cfg_category').value;
-    const name = document.getElementById('cfg_name').value.trim();
-    const full = document.getElementById('cfg_full_name').value.trim();
+// --- 6. METRICS ACCOUNT BALANCES CALCULATOR ---
+async function generateSummary() {
+    try {
+        const stockEntries = await db.stock.toArray();
+        const hullingEntries = await db.hulling.toArray();
+        const settingsEntries = await db.settings.toArray();
+        let expenseEntries = [];
+        if (db.expenses) expenseEntries = await db.expenses.toArray();
 
-    if(!name) return alert("Short identification key entry necessary.");
-    await db.settings.add({ category: cat, name, fullName: full });
-    showToast("Entity Account Saved.");
-    document.getElementById('cfg_name').value = "";
-    document.getElementById('cfg_full_name').value = "";
+        let totalRevenue = 0;
+        let totalExpenses = 0;
+
+        let costCategories = { paddy_purchases: 0, labor_wages: 0, electricity: 0, diesel: 0, miscellaneous: 0 };
+        let stockInventory = {};
+        const categoryMap = {};
+
+        settingsEntries.forEach(s => {
+            const nameKey = (s.fullName || s.name || "").toLowerCase().trim();
+            if (nameKey) categoryMap[nameKey] = (s.category || "").toLowerCase().trim();
+        });
+
+        hullingEntries.forEach(h => { totalRevenue += parseFloat(h.total) || 0; });
+
+        stockEntries.forEach(item => {
+            const amt = parseFloat(item.amount) || 0;
+            const weight = parseFloat(item.weight) || 0;
+            const itemTypeRaw = (item.type || "").trim();
+            const itemTypeLower = itemTypeRaw.toLowerCase();
+
+            if (item.action === "Sale") {
+                totalRevenue += amt;
+            } else if (item.action === "Purchase") {
+                totalExpenses += amt;
+                costCategories.paddy_purchases += amt;
+            }
+
+            if (itemTypeRaw) {
+                if (!stockInventory[itemTypeRaw]) stockInventory[itemTypeRaw] = 0;
+                if (itemTypeLower.includes("husk") || itemTypeLower.includes("waste") || itemTypeLower.includes("rice")) {
+                    stockInventory[itemTypeRaw] += (item.action === "Sale") ? weight : -weight;
+                } else {
+                    stockInventory[itemTypeRaw] += (item.action === "Purchase") ? weight : -weight;
+                }
+            }
+        });
+
+        expenseEntries.forEach(exp => {
+            const amt = parseFloat(exp.amount) || 0;
+            totalExpenses += amt;
+            const expCat = (exp.category || "").toLowerCase();
+            const expName = (exp.name || "").toLowerCase();
+
+            if (expCat === "wages" || expName.includes("labour") || expName.includes("wage")) costCategories.labor_wages += amt;
+            else if (expCat === "electricity" || expName.includes("electricity") || expName.includes("power") || expName.includes("mescom")) costCategories.electricity += amt;
+            else if (expCat === "fuel" || expName.includes("diesel")) costCategories.diesel += amt;
+            else costCategories.miscellaneous += amt;
+        });
+
+        const netProfit = totalRevenue - totalExpenses;
+
+        if (document.getElementById('dash_total_revenue')) document.getElementById('dash_total_revenue').innerText = "₹" + Math.round(totalRevenue).toLocaleString('en-IN');
+        if (document.getElementById('dash_total_costs')) document.getElementById('dash_total_costs').innerText = "₹" + Math.round(totalExpenses).toLocaleString('en-IN');
+        if (document.getElementById('dash_net_profit')) {
+            const el = document.getElementById('dash_net_profit');
+            el.innerText = "₹" + Math.round(netProfit).toLocaleString('en-IN');
+            el.style.color = netProfit >= 0 ? "#2e7d32" : "#c62828";
+        }
+
+        renderExpensePieChart(costCategories);
+        renderStockBarChart(stockInventory, categoryMap);
+        
+        if(document.getElementById('summary_display')) renderInventoryTable(stockInventory, 'summary_display');
+        if(document.getElementById('summary_display_history')) renderInventoryTable(stockInventory, 'summary_display_history');
+
+    } catch (err) {
+        console.error("Summary Matrix Computation Failure:", err);
+    }
+}
+
+// --- 7. CHART RENDERING FLOWS ---
+function renderExpensePieChart(costs) {
+    const canvas = document.getElementById('expenseChart');
+    if (!canvas) return;
+    if (expenseChartInstance) { expenseChartInstance.destroy(); expenseChartInstance = null; }
+
+    const ctx = canvas.getContext('2d');
+    expenseChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Paddy Purchases', 'Labour Wages', 'Electricity', 'Diesel Fuel', 'Other Outlays'],
+            datasets: [{
+                data: [costs.paddy_purchases, costs.labor_wages, costs.electricity, costs.diesel, costs.miscellaneous],
+                backgroundColor: ['#512da8', '#f57c00', '#0288d1', '#d81b60', '#78909c'],
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+    });
+}
+
+function renderStockBarChart(inventory, categoryMap) {
+    const canvas = document.getElementById('stockBarChart');
+    if (!canvas) return;
+    if (stockChartInstance) { stockChartInstance.destroy(); stockChartInstance = null; }
+
+    const labels = Object.keys(inventory);
+    const dataValues = Object.values(inventory);
+    if (labels.length === 0) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+
+    const backgroundColors = labels.map(label => {
+        const lowerLabel = label.toLowerCase();
+        let cat = "paddy";
+        for (const [key, val] of Object.entries(categoryMap)) { if (lowerLabel.includes(key)) { cat = val; break; } }
+        if (cat === "rice" || lowerLabel.includes("rice")) return '#2e7d32';
+        if (lowerLabel.includes("husk") || lowerLabel.includes("waste")) return '#b0bec5';
+        return '#ffb300';
+    });
+
+    const ctx = canvas.getContext('2d');
+    stockChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: 'Stock Balance', data: dataValues, backgroundColor: backgroundColors, borderRadius: 4 }] },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 45, minRotation: 45, font: { size: 9 } } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+function renderInventoryTable(stockInventory, elementId) {
+    const target = document.getElementById(elementId);
+    if (!target) return;
+
+    let html = `
+        <table class="summary-table" style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+            <thead>
+                <tr style="background-color:#eff1f5; border-bottom:2px solid #cfd8dc;">
+                    <th style="padding:10px;">Commodity Reference</th>
+                    <th style="padding:10px; text-align:right;">Book Balance</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    const keys = Object.keys(stockInventory);
+    if (keys.length === 0) {
+        html += `<tr><td colspan="2" style="text-align:center; padding:15px; color:#999;">No warehouse logs found.</td></tr>`;
+    } else {
+        keys.forEach((k, idx) => {
+            const unit = (k.toLowerCase().includes("husk") || k.toLowerCase().includes("rice")) ? "KG" : "Q";
+            html += `
+                <tr style="background-color:${idx % 2 === 0 ? '#ffffff' : '#f9f9f9'}; border-bottom:1px solid #eee;">
+                    <td style="padding:8px 10px;">${k}</td>
+                    <td style="padding:8px 10px; text-align:right; font-weight:bold; color:${stockInventory[k] >= 0 ? '#2e7d32' : '#c62828'}">
+                        ${stockInventory[k].toFixed(2)} ${unit}
+                    </td>
+                </tr>`;
+        });
+    }
+    target.innerHTML = html + `</tbody></table>`;
+}
+
+// --- 8. DATA LEDGER WRITING OPERATIONS ---
+async function saveHulling() {
+    await db.hulling.add({
+        name: document.getElementById('h_name').value.trim(),
+        weight: parseFloat(document.getElementById('h_weight').value) || 0,
+        rate: parseFloat(document.getElementById('h_rate').value) || 0,
+        total: parseFloat(document.getElementById('h_total_input').value) || 0,
+        status: document.getElementById('h_status').value,
+        date: document.getElementById('main_date_picker').value
+    });
+    showToast("Hulling Record Logged!");
+    document.getElementById('h_name').value = "";
+    document.getElementById('h_weight').value = "";
+    document.getElementById('h_total_input').value = "";
     window.refreshAll();
 }
 
-/* --- OUTPUT RENDERING ARCHITECTURE SYSTEMS --- */
-async function refreshLogisticsList() {
-    const container = document.getElementById('logistics_list');
-    if (!container) return;
-    const activeDate = document.getElementById('main_date_picker').value;
-    const list = await db.logistics.where('date').equals(activeDate).toArray();
+async function saveStock() {
+    const itemType = document.getElementById('st_type').value;
+    await db.stock.add({
+        name: document.getElementById('st_name').value.trim(),
+        action: document.getElementById('st_action').value,
+        type: itemType,
+        weight: parseFloat(document.getElementById('st_weight').value) || 0,
+        bags: parseFloat(document.getElementById('st_bags').value) || 0,
+        bagWeight: parseFloat(document.getElementById('st_bag_weight').value) || 0,
+        rate: parseFloat(document.getElementById('st_rate').value) || 0,
+        amount: parseFloat(document.getElementById('st_amount').value) || 0,
+        unit: getUnitLabel(itemType),
+        date: document.getElementById('main_date_picker').value
+    });
+    showToast("Stock Entry Saved!");
+    document.getElementById('st_name').value = "";
+    document.getElementById('st_weight').value = "";
+    document.getElementById('st_bags').value = "";
+    document.getElementById('st_bag_weight').value = "";
+    document.getElementById('st_rate').value = "";
+    document.getElementById('st_amount').value = "";
+    window.refreshAll();
+}
 
+async function saveExpense() {
+    const category = document.getElementById('exp_type_cat').value;
+    const amount = parseFloat(document.getElementById('exp_amount').value) || 0;
+    let details = document.getElementById('exp_name').value.trim();
+    
+    if (category === "Wages") {
+        const rate = document.getElementById('exp_labor_rate').value || 0;
+        const weight = document.getElementById('exp_labor_weight').value || 0;
+        details = `${details} (Labor Payout: ${weight}Q @ ₹${rate}/Q)`.trim();
+    } else if (category === "Electricity" && !details) {
+        details = "MESCOM Electricity Bill Payout";
+    }
+
+    if (amount <= 0) return alert("Please enter a valid expense amount.");
+
+    await db.expenses.add({
+        category: category,
+        name: details,
+        amount: amount,
+        date: document.getElementById('main_date_picker').value
+    });
+
+    showToast("Expense Recorded Successfully!");
+    document.getElementById('exp_name').value = "";
+    document.getElementById('exp_amount').value = "";
+    if (document.getElementById('exp_labor_rate')) document.getElementById('exp_labor_rate').value = "";
+    
+    window.refreshAll();
+}
+
+async function viewDayLog() {
+    const d = document.getElementById('main_date_picker').value;
+    const hulling = await db.hulling.where('date').equals(d).toArray();
+    const stock = await db.stock.where('date').equals(d).toArray();
+    let expenses = [];
+    if (db.expenses) expenses = await db.expenses.where('date').equals(d).toArray();
+    
     let html = "";
-    list.forEach(v => {
-        const isPaddy = v.vehicleType.includes("Paddy Load");
+
+    const combinedLogs = [
+        ...hulling.map(v => ({ ...v, table: 'hulling' })),
+        ...stock.map(v => ({ ...v, table: 'stock' })),
+        ...expenses.map(v => ({ ...v, table: 'expenses' }))
+    ];
+
+    combinedLogs.forEach(x => {
+        let isLabor = x.table === 'expenses' && (x.category === 'Wages' || (x.name || "").toLowerCase().includes("labor"));
+        let typeLabel = x.table === 'hulling' ? 'Hulling Service' : (x.table === 'expenses' ? `Expense: ${x.category}` : x.type);
+        let qtyText = x.table === 'hulling' ? `${x.weight} Q` : (x.table === 'expenses' ? 'Financial Outflow' : `${x.weight} ${x.unit || 'KG'}`);
+        
+        if (isLabor && x.name.includes("Payout:")) {
+            qtyText = "Calculated Wage Payment";
+        }
+
+        let borderColors = '#ff9800';
+        if (x.table === 'hulling') borderColors = '#673ab7';
+        else if (x.table === 'expenses') borderColors = isLabor ? '#00b0ff' : '#d32f2f';
+
         html += `
-        <div style="padding:15px; border-bottom:1px solid #eee; background:#fff; margin-bottom:12px; border-left:5px solid #00796b; border-radius:6px;">
-            <div style="float:right;">
-                <span style="background:#e0f2f1; color:#004d40; padding:4px 8px; border-radius:4px; font-size:11px; font-weight:bold;">${v.vehicleType}</span>
-                <button onclick="deleteLogistics(${v.id})" style="background:#ffcdd2; color:#b71c1c; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer; margin-top:8px; display:block; width:auto;">Delete</button>
+        <div class="log-card" style="border-left: 6px solid ${borderColors}; padding:10px; margin-bottom:8px; display:flex; justify-content:space-between; background:#fff; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.05); align-items:center;">
+            <div><b>${x.name || 'Counter Transaction'}</b> (${typeLabel})<br><small>${qtyText} | Total: ₹${x.total || x.amount}</small></div>
+            <div style="display:flex; gap:5px;">
+                <button class="btn-sm" style="padding:4px 8px; cursor:pointer;" onclick="generateBillPDF('${x.id}', '${x.table}')">PDF</button>
+                <button class="btn-sm" style="background:#c62828; color:#fff; border:none; border-radius:3px; padding:4px 8px; cursor:pointer;" onclick="deleteEntry('${x.id}', '${x.table}')">Del</button>
             </div>
-            <b style="font-size:15px;">${v.vehicleNo}</b><br>
-            <div style="margin-top:5px; font-size:13px; color:#546e7a;">
-                🏢 Vendor/Party: <b>${v.partyName}</b> | 🧑 Driver: <b>${v.driverName}</b><br>
-                📦 Load Vol: <b>${v.bags} Bags</b> | ⚖️ Net Weight: <b>${v.netWeight} Qtl</b>
-                ${isPaddy ? `<br>🌾 Variety Size: <b style="color:#4a148c;">${v.paddySize}</b>` : ''}
-            </div>
-            ${v.notes ? `<div style="margin-top:6px; font-size:12px; color:#78909c; background:#f5f7f8; padding:4px;">📝 ${v.notes}</div>` : ''}
-            <div style="clear:both;"></div>
         </div>`;
     });
-    container.innerHTML = html || "No vehicle entries logged for this date.";
+    document.getElementById('day_log').innerHTML = html || "No records logged for today.";
 }
 
-async function refreshSettingsList() {
-    const container = document.getElementById('settings_list');
-    if (!container) return;
-    const array = await db.settings.toArray();
-    let html = "";
-    array.forEach(item => {
-        html += `<div style='padding:10px; border-bottom:1px solid #eee; font-size:13px;'>💼 [${item.category}] <b>${item.name}</b> - <i>${item.fullName || 'No details'}</i></div>`;
-    });
-    container.innerHTML = html || "No custom profile entities mapped yet.";
-}
+async function generateBillPDF(id, table) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const data = await db[table].get(Number(id));
+    if (!data) return alert("Record fetch missing.");
 
-// Master History Engine loop feeding both Dashboard and History Tabs concurrently
-async function viewDayLog() {
-    const mainDashboardContainer = document.getElementById('day_log_summary');
-    const dedicatedHistoryContainer = document.getElementById('history_day_log_feed');
+    doc.setFontSize(18);
+    doc.text("SHRI PARSHWANATHA RICE MILL", 105, 15, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("Proprietor: Jwalaprasad K J | Sullalli, Shimoga", 105, 22, { align: "center" });
+    doc.text("Date: " + data.date, 105, 27, { align: "center" });
+    doc.line(20, 30, 190, 30);
     
+    let descriptiveTitle = data.name || "Walk-in Transaction";
+    doc.text("Account Name Reference: " + descriptiveTitle, 20, 38);
+
+    let rows = [];
+    if (table === 'hulling') {
+        rows.push(["Hulling Production Fee", `${data.weight} Q`, `Rs. ${data.rate}`, `Rs. ${data.total}`]);
+    } else if (table === 'expenses') {
+        rows.push([`Expense entry (${data.category})`, "N/A", "Ledger Outflow", `Rs. ${data.amount}`]);
+    } else {
+        rows.push([data.type, data.bags ? `${data.bags} Bags x ${data.bagWeight}kg` : `${data.weight} ${data.unit}`, `Rs. ${data.rate}`, `Rs. ${data.amount}`]);
+    }
+
+    doc.autoTable({
+        startY: 45,
+        head: [['Item Specifications', 'Calculated Weight', 'Unit Rate Base', 'Net Amount']],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [81, 45, 168] }
+    });
+
+    doc.save(`${data.name || 'Receipt'}_Statement.pdf`);
+}
+
+// --- 9. STABLE EXPORT ENGINE PIPELINES ---
+async function exportDailyPDF() {
     const targetDate = document.getElementById('main_date_picker').value;
-    const hullList = await db.hulling.where('date').equals(targetDate).toArray();
-    const stockList = await db.stock.where('date').equals(targetDate).toArray();
-    const logiList = await db.logistics.where('date').equals(targetDate).toArray();
+    const hulling = await db.hulling.where('date').equals(targetDate).toArray();
+    const stock = await db.stock.where('date').equals(targetDate).toArray();
+    let expenses = [];
+    if (db.expenses) expenses = await db.expenses.where('date').equals(targetDate).toArray();
     
-    let html = "";
-    
-    hullList.forEach(h => {
-        html += `<div style="padding:12px; border-bottom:1px solid #eee; font-size:13px; background:#fff; margin-bottom:6px; border-left:3px solid var(--primary-color);">⚙️ <b>Hulling Run:</b> Customer <b>${h.name}</b> processed ${h.weight} Qtl (₹${h.total})</div>`;
+    if (hulling.length === 0 && stock.length === 0 && expenses.length === 0) {
+        return alert("No data logs recorded to export for this date.");
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("DAILY TRANSACTION SUMMARY REPORT", 105, 15, { align: "center" });
+    doc.setFontSize(11);
+    doc.text(`Shri Parshwanatha Rice Mill | Statement Date: ${targetDate}`, 105, 22, { align: "center" });
+    doc.line(15, 26, 195, 26);
+
+    let bodyRows = [];
+    hulling.forEach(h => {
+        bodyRows.push(["Hulling Production", h.name || "-", `${h.weight} Q`, `₹${h.rate}`, `₹${h.total}`]);
     });
-    
-    stockList.forEach(s => {
-        html += `<div style="padding:12px; border-bottom:1px solid #eee; font-size:13px; background:#fff; margin-bottom:6px; border-left:3px solid var(--success-color);">📦 <b>Stock Shift:</b> ${s.action} ${s.type} - ${s.bags} Bags (${s.paddySize})</div>`;
+    stock.forEach(s => {
+        let qty = s.bags ? `${s.bags} Bags × ${s.bagWeight}KG` : `${s.weight} ${s.unit || 'KG'}`;
+        bodyRows.push([s.action + " - " + s.type, s.name || "-", qty, `₹${s.rate}`, `₹${s.amount}`]);
+    });
+    expenses.forEach(e => {
+        bodyRows.push([`Expense - ${e.category}`, e.name || "-", "Outflow", "-", `₹${e.amount}`]);
     });
 
-    logiList.forEach(l => {
-        html += `<div style="padding:12px; border-bottom:1px solid #eee; font-size:13px; background:#fff; margin-bottom:6px; border-left:3px solid #00796b;">🚛 <b>Logistics entry:</b> ${l.vehicleNo} | ${l.vehicleType} (${l.bags} Bags)</div>`;
+    doc.autoTable({
+        startY: 32,
+        head: [['Transaction Category', 'Party Name', 'Quantity/Weight', 'Rate Base', 'Total Net Amount']],
+        body: bodyRows,
+        theme: 'striped',
+        headStyles: { fillColor: [46, 125, 50] }
     });
-    
-    const finalHtml = html || "<div style='color:#546e7a; padding:10px; font-size:13px;'>No mill operations or entries recorded on this calendar date frame.</div>";
-    
-    if (mainDashboardContainer) mainDashboardContainer.innerHTML = finalHtml;
-    if (dedicatedHistoryContainer) dedicatedHistoryContainer.innerHTML = finalHtml;
+
+    doc.save(`Daily_Report_${targetDate}.pdf`);
 }
 
-async function generateSummary() {
+async function exportDailyExcel() {
     const targetDate = document.getElementById('main_date_picker').value;
-    const hullingData = await db.hulling.where('date').equals(targetDate).toArray();
-    const stockData = await db.stock.toArray();
+    const hulling = await db.hulling.where('date').equals(targetDate).toArray();
+    const stock = await db.stock.where('date').equals(targetDate).toArray();
+    let expenses = [];
+    if (db.expenses) expenses = await db.expenses.where('date').equals(targetDate).toArray();
 
-    // Today's Hulling Math
-    let totalHullingWt = 0;
-    hullingData.forEach(h => totalHullingWt += h.weight);
-    document.getElementById('dash_hulling_summary').innerText = `${totalHullingWt.toFixed(2)} Quintals processed`;
+    if (hulling.length === 0 && stock.length === 0 && expenses.length === 0) {
+        return alert("No data logs recorded to export for this date.");
+    }
 
-    // Global Accumulative Stock Math Engine
-    let paddyBags = 0;
-    let riceBags = 0;
+    let csvRows = ["Transaction Category,Party Name,Quantity/Weight,Rate Base,Total Net Amount"];
 
-    stockData.forEach(s => {
-        if (s.type === "Paddy") {
-            paddyBags += (s.action === "Add") ? s.bags : -s.bags;
-        } else if (s.type === "Rice") {
-            riceBags += (s.action === "Add") ? s.bags : -s.bags;
+    hulling.forEach(h => {
+        csvRows.push(`"Hulling Production","${h.name || '-'}","${h.weight} Q","${h.rate}","${h.total}"`);
+    });
+    stock.forEach(s => {
+        let qty = s.bags ? `${s.bags} Bags x ${s.bagWeight}KG` : `${s.weight} ${s.unit || 'KG'}`;
+        csvRows.push(`"${s.action} - ${s.type}","${s.name || '-'}","${qty}","${s.rate}","${s.amount}"`);
+    });
+    expenses.forEach(e => {
+        csvRows.push(`"Expense - ${e.category}","${e.name || '-'}","Financial Outflow","-","${e.amount}"`);
+    });
+
+    const csvContent = csvRows.join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blobUrl = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", blobUrl);
+    link.setAttribute("download", `Daily_Report_${targetDate}.csv`);
+    document.body.appendChild(link);
+    
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl); 
+}
+
+async function deleteEntry(id, table) {
+    if (confirm("Permanently erase record?")) {
+        await db[table].delete(Number(id));
+        window.refreshAll();
+    }
+}
+
+// --- 10. BACKUP AND IMPORT PROTOCOLS ---
+async function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (confirm("WARNING: Overwrite operational records with this backup file?")) {
+                await Promise.all([db.settings.clear(), db.hulling.clear(), db.stock.clear()]);
+                if (db.expenses) await db.expenses.clear();
+
+                if (data.settings) await db.settings.bulkPut(data.settings);
+                if (data.hulling) await db.hulling.bulkPut(data.hulling);
+                if (data.stock) await db.stock.bulkPut(data.stock);
+                if (data.expenses && db.expenses) await db.expenses.bulkPut(data.expenses);
+
+                alert("Database Restored Successfully!");
+                location.reload(); 
+            }
+        } catch (err) {
+            alert("JSON Processing Crash: " + err.message);
         }
-    });
-
-    document.getElementById('dash_rice_stock').innerText = `${riceBags} Bags`;
-    document.getElementById('dash_paddy_stock').innerText = `${paddyBags} Bags`;
+    };
+    reader.readAsText(file);
 }
 
-/* --- TOAST DISPLAY BANNER ACTION EFFECT --- */
-function showToast(msg) {
-    const el = document.getElementById("toast");
-    el.innerText = msg;
-    el.classList.add("show");
-    setTimeout(() => { el.classList.remove("show"); }, 2800);
+async function exportData() {
+    const settings = await db.settings.toArray();
+    const hulling = await db.hulling.toArray();
+    const stock = await db.stock.toArray();
+    const payload = { settings, hulling, stock };
+    if (db.expenses) payload.expenses = await db.expenses.toArray();
+
+    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Backup_Mill_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+}
+
+function showToast(text) {
+    const t = document.getElementById('toast');
+    if (t) { t.innerText = text; t.className = "show"; setTimeout(() => t.className = "", 3000); }
 }
